@@ -1,7 +1,7 @@
 # Pipetree
 A minimalist data pipeline library built on top of Spark
 
-### Example: Test all learning rates for your Cat Emotion Predictor in 32 lines of code
+### Example: Concurrently test learning rates for your Cat Emotion Predictor in 32 lines of code
 
 Pipetree is simple and straight forward. 
 
@@ -14,21 +14,17 @@ preprocess_images = {
   "name": "preprocessed_images",
   "inputs": {"images": raw_images},
   "outputs": {"images": "file_folder"},
-  "run": lambda inputs: my_preprocess(inputs["images"])
+  "run": my_image_preprocess_function
 }
 
 # Change parameters at any time and a new model will be trained.
-parameters = pipetree.parameters({"number_hidden_neurons": 100, "epochs": 200})
-test_parameters = pipetree.grid_search_parameters({"learning_rate": [0.001, 0.01, 0.1, 0.2]})
+params = pipetree.parameters({"number_hidden_neurons": 100, "epochs": 200})
+test_params = pipetree.grid_search_parameters({"learning_rate": [0.001, 0.01, 0.1, 0.2]})
 
 # One model will automatically be trained for each learning rate
 trained_model = {
   "name": "trained_model",
-  "inputs": {
-    "images": preprocessed_images,
-    "parameters": parameters,
-    "test_parameters": test_parameters
-  },
+  "inputs": {"images": preprocessed_images, "params": params , "test_params": test_params },
   "outputs": {"trained_model": "file"},
   "run": my_training_function
 }
@@ -37,10 +33,7 @@ trained_model = {
 pipeline_options = {
   "pipeline_name": "predict_cat_emotions"
   "storage": "s3",
-  "cluster": {
-    "max_servers": 10,
-    "server_size": "c2"
-  }	
+  "cluster": { "max_servers": 10, "server_size": "c2" }
 }
 
 pipetree.run(trained_model, pipeline_options)
