@@ -2,8 +2,7 @@
 A minimalist data pipeline library built on top of Spark
 
 
-```
-
+```python
 raw_images = pipeTree.file_folder("cat_pictures", "./local_path_to_cat_images/")
 preprocess_images = {
   "name": "preprocessed_images",
