@@ -1,13 +1,15 @@
 # Pipetree
 A minimalist data pipeline library built on top of Spark
 
-### Example: Test all learning rates for your Cat Emotion Predictor in 31 lines of code
+### Example: Test all learning rates for your Cat Emotion Predictor in 32 lines of code
 
-Pipetree uses basic interfaces, and only has a handful functions, all of which are obvious. 
+Pipetree is simple and straight forward. 
 
 ```python
+# Images will be automatically uploaded to s3 from your local machine
 raw_images = pipetree.file_folder("cat_pictures", "./local_path_to_cat_images/")
 
+# Images will only be preprocessed once, then stored on s3
 preprocess_images = {
   "name": "preprocessed_images",
   "inputs": {"images": raw_images},
@@ -15,20 +17,24 @@ preprocess_images = {
   "run": lambda inputs: my_preprocess(inputs["images"])
 }
 
-parameters = pipetree.parameters({"number_hidden_neurons": 100})
+# Change parameters at any time and a new model will be trained.
+parameters = pipetree.parameters({"number_hidden_neurons": 100, "epochs": 200})
 test_parameters = pipetree.grid_search_parameters({"learning_rate": [0.001, 0.01, 0.1, 0.2]})
 
+# One model will automatically be trained for each learning rate
 trained_model = {
   "name": "trained_model",
-  "inputs": {"images": preprocessed_images,
-  	    "parameters": parameters,
-	    "test_parameters": test_parameters
-  	    },
+  "inputs": {
+    "images": preprocessed_images,
+    "parameters": parameters,
+    "test_parameters": test_parameters
+  },
   "outputs": {"trained_model": "file"},
-   "run": my_training_function
+  "run": my_training_function
 }
 
-options = {
+# Setup your pipeline with straightforward options
+pipeline_options = {
   "pipeline_name": "predict_cat_emotions"
   "storage": "s3",
   "cluster": {
@@ -37,7 +43,7 @@ options = {
   }	
 }
 
-pipetree.run(trained_model, options)
+pipetree.run(trained_model, pipeline_options)
 ```
 
 
