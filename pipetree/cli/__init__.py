@@ -19,3 +19,24 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+import click
+from pipetree import __version__ as pipetree_version
+
+
+@click.group()
+@click.version_option(version=pipetree_version, message='%(prog)s %(version)s')
+def cli():
+    pass
+
+@cli.command()
+
+def test():
+    click.echo("Running the test command")
+
+@cli.command()
+def fuck():
+    click.echo("running the fuck command")
+    
+def main():
+    cli(obj={})
