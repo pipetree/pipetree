@@ -30,20 +30,17 @@ class TestBasicLocal(unittest.TestCase):
         """
         Test local file pipeline creation
         """
-        testfname = "testfile"
-        testfh = open(testfname, 'w')
-        testcontents = "gorb" * 1000
-        testfh.write(testcontents)
-        testfh.close()
-        
+        testcontents = 'gorb' * 1000
         pipeline_item = {"name": "test_file",
                          "type": storage.PLI_FILE_TYPE,
                          "local_filepath": "./testfile"}
-        fh = local.file_handle(pipeline_item, {})
-
-        contents = fh.read()
-        self.assertEqual(testcontents, contents)
-
+        
+        with open('testfile', 'w') as f:
+            f.write(testcontents)        
+        with local.file_handle(pipeline_item, {}) as fh:
+            contents = fh.read()
+            self.assertEqual(testcontents, contents)
+        
     def test_versions(self):
         """
         Test that when we create a new version of a pipeline item,
