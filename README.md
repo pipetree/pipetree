@@ -1,3 +1,4 @@
+[![codecov](https://codecov.io/gh/pipetree/pipetree/branch/master/graph/badge.svg)](https://codecov.io/gh/pipetree/pipetree)
 # Pipetree
 A minimalist data pipeline library built on top of Spark
 
