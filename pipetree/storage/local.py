@@ -25,12 +25,14 @@ local.py
 
 Provides storage mechanisms for local storage and retrieval of files.
 """
-from storage import *
-import os.pathimport distutils.dir_util
+import os.path
+import distutils.dir_util
 import shutil
 import hashlib
 import json
-    
+
+from pipetree.storage import storage
+
 METAFILE = "pipeline.meta"
 METADATA_FILES = [METAFILE]
 
@@ -58,7 +60,7 @@ def file_metadata(pipeline_item, pipeline_options):
     """
     Returns the file metadata for a given pipeline item, or None if none exists
     """
-    require_type(pipeline_item, PLI_FILE_TYPE)
+    require_type(pipeline_item, storage.PLI_FILE_TYPE)
 
     # TODO: Currently throws an exception if file metadata DNE for testing purposes
     
@@ -88,7 +90,7 @@ def file_handle(pipeline_item, pipeline_options, version=None):
     Defaults to returning the most recently created version.
     """
 
-    require_type(pipeline_item, PLI_FILE_TYPE)
+    require_type(pipeline_item, storage.PLI_FILE_TYPE)
     fpath = pipeline_item["local_filepath"]
 
     storage_path = local_storage_path(pipeline_options)
@@ -116,7 +118,7 @@ def file_versions(pipeline_item, pipeline_options):
     """
     Returns a list of all locally stored versions of a file pipeline item
     """
-    require_type(pipeline_item, PLI_FILE_TYPE)
+    require_type(pipeline_item, storage.PLI_FILE_TYPE)
     version_folder = os.path.join(local_storage_path(pipeline_options), pipeline_item["name"])
     if not os.path.exists(version_folder):
         distutils.dir_util.mkpath(version_folder)    
