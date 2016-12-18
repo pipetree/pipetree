@@ -4,9 +4,9 @@ from pipetree import __version__ as pipetree_version
 with open('README.rst') as readme_file:
     README = readme_file.read()
 
-    
 install_requires = [
     'click==6.6',
+    'boto3==1.4.2',
 ]
 
 setup(
@@ -14,7 +14,8 @@ setup(
     version=pipetree_version,
     description='A minimalist data pipeline library and CLI built on top of Spark.',
     author='Morgan McDermott & John Carlyle',
-    long_desciption=README,
+    author_email='pipetree@citrusmode.com',
+    long_description=README,
     url='https://github.com/mmcdermo/pipetree',
     license='MIT',
     zip_safe=False,
