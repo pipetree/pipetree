@@ -5,8 +5,7 @@ local.py
 Provides storage mechanisms for local storage and retrieval of files.
 """
 from pipelinestorage import *
-import os.path
-import distutils.dir_util
+import os.pathimport distutils.dir_util
 import shutil
 import hashlib
 import json

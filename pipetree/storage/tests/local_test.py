@@ -12,7 +12,7 @@ import local
 class TestBasicLocal(unittest.TestCase):
     def test_filehandle(self):
         """
-        Test that we can create a local file pipeline item
+        Test local file pipeline creation
         """
         testfname = "testfile"
         testfh = open(testfname, 'w')
