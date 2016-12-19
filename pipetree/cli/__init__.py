@@ -23,7 +23,7 @@
 import os
 import json
 import click
-from subprocess import check_call
+import subprocess
 from pipetree import __version__ as pipetree_version
 from pipetree.templates import DEFAULT_CONFIG
 
@@ -101,10 +101,10 @@ def config_get(ctx, setting_name):
 @config.command('edit')
 @click.pass_context
 def config_edit(ctx):
-    check_call([os.environ.get('EDITOR', 'vi'),
-                os.path.join(ctx.obj['project_dir'],
-                             '.pipetree',
-                             'config.json')])
+    subprocess.check_call([os.environ.get('EDITOR', 'vi'),
+                           os.path.join(ctx.obj['project_dir'],
+                                        '.pipetree',
+                                        'config.json')])
 
 
 def main():

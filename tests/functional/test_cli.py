@@ -76,3 +76,11 @@ class TestConfig(unittest.TestCase):
         result = self.runner.invoke(cli, ['config', 'get', 'project_name'])
         self.assertEqual(result.output, 'bar\n')
         self.runner.invoke(cli, ['config', 'set', 'project_name', self.dirname])
+
+    @mock.patch('subprocess.check_call')
+    def test_set_edit(self, mock_cc):
+        self.runner.invoke(cli, ['config', 'edit'])
+        mock_cc.assert_called_with([os.environ.get('EDITOR', 'vi'),
+                                    os.path.join(os.getcwd(),
+                                                 '.pipetree',
+                                                 'config.json')])
