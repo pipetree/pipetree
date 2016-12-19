@@ -22,9 +22,10 @@
 
 import os
 import unittest
+from unittest import mock
 from click.testing import CliRunner
 
-from pipetree.cli import init
+from pipetree.cli import cli
 from pipetree.templates import DEFAULT_CONFIG
 
 
@@ -36,7 +37,10 @@ class TestInit(unittest.TestCase):
         self.runner = CliRunner()
         self.fs = self.runner.isolated_filesystem()
         self.fs.__enter__()
-        self.runner.invoke(init, [self.dirname])
+        self.runner.invoke(cli, ['init', self.dirname])
+
+    def tearDown(self):
+        self.fs.__exit__(None, None, None)
 
     def test_project_dir_name(self):
         self.assertEqual(os.listdir('.')[0],
@@ -51,5 +55,24 @@ class TestInit(unittest.TestCase):
             self.assertEqual(DEFAULT_CONFIG % self.dirname,
                              f.read())
 
+class TestConfig(unittest.TestCase):
+    def setUp(self):
+        self.dirname = 'foo'
+        self.runner = CliRunner()
+        self.fs = self.runner.isolated_filesystem()
+        self.fs.__enter__()
+        self.runner.invoke(cli, ['init', self.dirname])
+        os.chdir(self.dirname)
+
     def tearDown(self):
         self.fs.__exit__(None, None, None)
+
+    def test_get_config(self):
+        result = self.runner.invoke(cli, ['config', 'get', 'project_name'])
+        self.assertEqual(result.output, '%s\n' % self.dirname)
+
+    def test_set_config(self):
+        self.runner.invoke(cli, ['config', 'set', 'project_name', 'bar'])
+        result = self.runner.invoke(cli, ['config', 'get', 'project_name'])
+        self.assertEqual(result.output, 'bar\n')
+        self.runner.invoke(cli, ['config', 'set', 'project_name', self.dirname])

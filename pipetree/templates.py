@@ -23,7 +23,6 @@
 import json
 
 _default_config = {
-    'project_name': '%s',
-    'region': 'us-west-2',
+    'project_name': '%s'
 }
 DEFAULT_CONFIG = json.dumps(_default_config, indent=4)

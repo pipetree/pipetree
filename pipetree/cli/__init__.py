@@ -23,18 +23,32 @@
 import os
 import json
 import click
+from subprocess import check_call
 from pipetree import __version__ as pipetree_version
 from pipetree.templates import DEFAULT_CONFIG
 
 
+def _get_config_path(ctx):
+    project_dir = ctx.obj['project_dir']
+    return os.path.join(project_dir, '.pipetree', 'config.json')
+
+
+def _assert_in_project_dir(path):
+    if '.pipetree' not in os.listdir(path):
+        click.echo('fatal: not a pipetree directory.')
+        raise click.Abort()
+
+
 @click.group()
 @click.version_option(version=pipetree_version, message='%(prog)s %(version)s')
-@click.option('--debug/--no-debug', default=False,
-              help='Write debug logs to standard error.')
 @click.option('--project_dir', help='The project directory. '
               'Defaults to the current directory.')
+@click.option('--debug/--no-debug', default=False,
+              help='Write debug logs to standard error.')
 @click.pass_context
 def cli(ctx, project_dir, debug=False):
+    if not ctx.obj:
+        ctx.obj = {}
     if project_dir is None:
         project_dir = os.getcwd()
     ctx.obj['project_dir'] = project_dir
@@ -53,7 +67,44 @@ def init(ctx, project_name):
     os.makedirs(pipetree_dir)
     with open(config, 'w') as f:
         f.write(DEFAULT_CONFIG % project_name)
-    click.echo("Created new project %s" %project_name)
+    click.echo("Created new project %s" % project_name)
+
+
+@cli.group()
+@click.pass_context
+def config(ctx):
+    _assert_in_project_dir(ctx.obj['project_dir'])
+
+
+@config.command('set')
+@click.argument('setting_name', required=True)
+@click.argument('new_value', required=True)
+@click.pass_context
+def config_set(ctx, setting_name, new_value):
+    with open(_get_config_path(ctx), 'r') as f:
+        cfg = json.loads(f.read())
+        cfg[setting_name] = new_value
+    with open(_get_config_path(ctx), 'w') as f:
+        f.write(json.dumps(cfg, indent=4))
+
+
+@config.command('get')
+@click.argument('setting_name', required=True)
+@click.pass_context
+def config_get(ctx, setting_name):
+    with open(_get_config_path(ctx), 'r') as f:
+        cfg = json.loads(f.read())
+        click.echo(cfg.get(setting_name,
+                           'Setting \'%s\' not found.' % setting_name))
+
+
+@config.command('edit')
+@click.pass_context
+def config_edit(ctx):
+    check_call([os.environ.get('EDITOR', 'vi'),
+                os.path.join(ctx.obj['project_dir'],
+                             '.pipetree',
+                             'config.json')])
 
 
 def main():
