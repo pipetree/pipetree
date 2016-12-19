@@ -8,7 +8,8 @@ install:
   - pip install -e .
   - pip install -r requirements.txt
   - pip install codecov
+  - pip install coverage
 script:
-  - nosetests --with-coverage
+  - nosetests --with-coverage --cover-erase --cover-package pipetree --with-xunit --cover-xml -v tests/unit/ tests/functional/
 after_success:
   - codecov

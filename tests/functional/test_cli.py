@@ -21,40 +21,35 @@
 # SOFTWARE.
 
 import os
-import json
-import click
-from pipetree import __version__ as pipetree_version
+import unittest
+from click.testing import CliRunner
+
+from pipetree.cli import init
 from pipetree.templates import DEFAULT_CONFIG
 
 
-@click.group()
-@click.version_option(version=pipetree_version, message='%(prog)s %(version)s')
-@click.option('--debug/--no-debug', default=False,
-              help='Write debug logs to standard error.')
-@click.option('--project_dir', help='The project directory. '
-              'Defaults to the current directory.')
-@click.pass_context
-def cli(ctx, project_dir, debug=False):
-    if project_dir is None:
-        project_dir = os.getcwd()
-    ctx.obj['project_dir'] = project_dir
-    ctx.obj['debug'] = debug
+class TestInit(unittest.TestCase):
+    def setUp(self):
+        self.dirname = 'foo'
+        self.config_path = '%s/.pipetree/config.json' % self.dirname
 
+        self.runner = CliRunner()
+        self.fs = self.runner.isolated_filesystem()
+        self.fs.__enter__()
+        self.runner.invoke(init, [self.dirname])
 
-@cli.command()
-@click.argument('project_name', required=True)
-@click.pass_context
-def init(ctx, project_name):
-    if os.path.isdir(project_name):
-        click.echo('Already a directory named: %s' % project_name)
-        raise click.Abort()
-    pipetree_dir = os.path.join(project_name, '.pipetree')
-    config = os.path.join(pipetree_dir, 'config.json')
-    os.makedirs(pipetree_dir)
-    with open(config, 'w') as f:
-        f.write(DEFAULT_CONFIG % project_name)
-    click.echo("Created new project %s" %project_name)
+    def test_project_dir_name(self):
+        self.assertEqual(os.listdir('.')[0],
+                         self.dirname)
 
+    def test_pipetree_dir(self):
+        self.assertIn('.pipetree',
+                      os.listdir(self.dirname))
 
-def main():
-    cli(obj={})
+    def test_config_json(self):
+        with open(self.config_path, 'r') as f:
+            self.assertEqual(DEFAULT_CONFIG % self.dirname,
+                             f.read())
+
+    def tearDown(self):
+        self.fs.__exit__(None, None, None)
