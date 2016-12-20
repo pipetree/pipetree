@@ -14,7 +14,6 @@ A minimalist data pipeline library built on top of Spark
   "raw_images": {
     "type": "file_folder",
     "filepath":  "./local_path_to_cat_images/",
-    "outputs": { "images": "file_folder" },
   },
   "preprocess_parameters": {
     "whiten": true,
@@ -22,7 +21,7 @@ A minimalist data pipeline library built on top of Spark
   },
   "preprocessed_images": {
     "inputs": ["raw_images", "preprocess_parameters"],
-    "outputs": { "images": "file_folder" },
+    "outputs": "file_folder",
     "run": "my_image_preprocess_function"
   },
   "model_parameters": {
@@ -36,7 +35,7 @@ A minimalist data pipeline library built on top of Spark
   "trained_model": {
     "name": "trained_model",
     "inputs": ["preprocessed_images", "model_parameters", "test_parameters"],
-    "outputs": { "trained_models": "file_folder" },
+    "outputs": "file_folder",
     "run": "my_train_model_function"
   }
 }
