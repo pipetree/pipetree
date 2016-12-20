@@ -55,9 +55,12 @@ def my_train_model_function(preprocessed_images, model_parameters, test_paramete
   epochs = int(model_parameters["epochs"])
   for i in xrange(epochs):
     (error, trained_model) = train_model_one_epoch()
+    
     # Produce trained model objects to be stored as pipeline artifacts
-    yield { "data": trained_model.serialize(),
-      "metadata": { "error": float(error) }
+    yield {
+        "data": trained_model.serialize(),
+        "metadata": { "error": float(error) }
+      }
   
 ```
 
