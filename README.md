@@ -2,11 +2,11 @@
 # Pipetree
 A minimalist data pipeline library built on top of Spark
 
-### Example: Concurrently test 4 learning rates for your Cat Emotion Predictor in 32 lines of code
+* Cache intermediate data transformations, allowing for rapid prototyping.
+* Compatible with most machine learning libraries out of the box (TensorFlow / Keras / Theano / Caffe / ... )
+* Automatically create and manage an EC2 cluster, including dependencies and server setup
 
-* Compatible with most machine learning libraries (TensorFlow / Keras / Theano / Caffe / ... )
-* Caches all intermediate computations, allowing for rapid prototyping.
-* Automatically creates and manages a temporary EC2 cluster, including dependencies and server setup
+### Example: Concurrently test 4 learning rates for your Cat Emotion Predictor
 
 ## Configure your pipeline with JSON
 ```json
