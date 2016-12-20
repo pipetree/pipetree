@@ -1,6 +1,6 @@
 [![codecov](https://codecov.io/gh/pipetree/pipetree/branch/master/graph/badge.svg)](https://codecov.io/gh/pipetree/pipetree)
 # Pipetree
-A minimalist data pipeline library built on top of Spark
+A minimalist data pipeline library built for rapid machine learning development using AWS
 
 * Cache intermediate data transformations, allowing for rapid prototyping.
 * Compatible with most machine learning libraries out of the box (TensorFlow / Keras / Theano / Caffe / ... )
