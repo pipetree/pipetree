@@ -21,7 +21,7 @@ A minimalist data pipeline library built on top of Spark
     "PCA": false
   },
   "preprocessed_images": {
-    "inputs": ["raw_images", "preprocess_parameters"]
+    "inputs": ["raw_images", "preprocess_parameters"],
     "outputs": { "images": "file_folder" },
     "run": "my_image_preprocess_function"
   },
@@ -35,7 +35,7 @@ A minimalist data pipeline library built on top of Spark
   },
   "trained_model": {
     "name": "trained_model",
-    "inputs": ["preprocessed_images", "model_parameters", "test_parameters"]
+    "inputs": ["preprocessed_images", "model_parameters", "test_parameters"],
     "outputs": { "trained_models": "file_folder" },
     "run": "my_train_model_function"
   }
@@ -52,7 +52,6 @@ def my_image_preprocess_function(raw_images, preprocess_parameters):
     yield some_preprocess_function(image)
 
 def my_train_model_function(preprocessed_images, model_parameters, test_parameters):
-  print(preprocessed_images.some_folder_object_function())
   hidden_neurons = int(model_parameters["number_hidden_neurons"])
   learning_rate = float(test_parameters["learning_rate"])
   epochs = int(model_parameters["epochs"])
@@ -64,7 +63,7 @@ def my_train_model_function(preprocessed_images, model_parameters, test_paramete
   
 ```
 
-## Future Featurse
+## Future Features
 
 * Use builtin spark datatypes
 * Smart handling of file_folders (stream to s3 as they get produced, from s3 as they are used)
