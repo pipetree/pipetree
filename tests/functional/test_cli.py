@@ -21,12 +21,14 @@
 # SOFTWARE.
 
 import os
+import click
 import unittest
 from unittest import mock
 from click.testing import CliRunner
 
 from pipetree.cli import cli
 from pipetree.templates import DEFAULT_CONFIG
+from pipetree.cli.utils import _assert_in_project_dir
 
 
 class TestInit(unittest.TestCase):
@@ -84,3 +86,16 @@ class TestConfig(unittest.TestCase):
                                     os.path.join(os.getcwd(),
                                                  '.pipetree',
                                                  'config.json')])
+
+    def test_assert_in_project_dir(self):
+        try:
+            _assert_in_project_dir(os.getcwd())
+        except click.exceptions.Abort:
+            print('Asserting currently in project dir failed.')
+            raise
+        os.chdir('..')
+        try:
+            _assert_in_project_dir(os.getcwd())
+            raise Exception('Incorrectly reporting in a project dir.')
+        except click.exceptions.Abort:
+            pass

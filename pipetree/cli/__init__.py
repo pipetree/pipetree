@@ -24,19 +24,11 @@ import os
 import json
 import click
 import subprocess
+
+from .utils import _get_config_path, _assert_in_project_dir
+
 from pipetree import __version__ as pipetree_version
 from pipetree.templates import DEFAULT_CONFIG
-
-
-def _get_config_path(ctx):
-    project_dir = ctx.obj['project_dir']
-    return os.path.join(project_dir, '.pipetree', 'config.json')
-
-
-def _assert_in_project_dir(path):
-    if '.pipetree' not in os.listdir(path):
-        click.echo('fatal: not a pipetree directory.')
-        raise click.Abort()
 
 
 @click.group()
