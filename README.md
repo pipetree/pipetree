@@ -42,7 +42,7 @@ A minimalist data pipeline library built for rapid machine learning development 
 
 ## Python integration
 ```python
-# Function takes arguments in the same order as the pipeline item inputs
+# Function is passed keyword arguments based on the names of its pipeline item inputs
 def my_image_preprocess_function(raw_images, preprocess_parameters):
   if preprocess_parameters["PCA"] is True:
     pipetree.log("PCA enabled")
