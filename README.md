@@ -33,7 +33,6 @@ A minimalist data pipeline library built on top of Spark
     "learning_rate": [0.1, 0.01, 0.001, 0.2]
   },
   "trained_model": {
-    "name": "trained_model",
     "inputs": ["preprocessed_images", "model_parameters", "test_parameters"],
     "outputs": "file_folder",
     "run": "my_train_model_function"
