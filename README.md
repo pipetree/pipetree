@@ -4,43 +4,64 @@ A minimalist data pipeline library built on top of Spark
 
 ### Example: Concurrently test 4 learning rates for your Cat Emotion Predictor in 32 lines of code
 
-
 * Compatible with most machine learning libraries (TensorFlow / Keras / Theano / Caffe / ... )
 * Caches all intermediate computations, allowing for rapid prototyping.
 * Automatically creates and manages a temporary EC2 cluster, including dependencies and server setup
 
+## Configure your pipeline with JSON
+```json
+{
+  "raw_images": {
+    "type": "file_folder",
+    "filepath":  "./local_path_to_cat_images/",
+    "outputs": { "images": "file_folder" },
+  },
+  "preprocess_parameters": {
+    "whiten": true,
+    "PCA": false
+  },
+  "preprocessed_images": {
+    "inputs": ["raw_images", "preprocess_parameters"]
+    "outputs": { "images": "file_folder" },
+    "run": "my_image_preprocess_function"
+  },
+  "model_parameters": {
+    "number_hidden_neurons": 100,
+    "epochs": 200
+  },
+  "test_parameters": {
+    "type": "grid_search_parameters",
+    "learning_rate": [0.1, 0.01, 0.001, 0.2]
+  },
+  "trained_model": {
+    "name": "trained_model",
+    "inputs": ["preprocessed_images", "model_parameters", "test_parameters"]
+    "outputs": { "trained_models": "file_folder" },
+    "run": "my_train_model_function"
+  }
+}
+```
+
+## Python integration
 ```python
-# Images will be automatically uploaded to s3 from your local machine
-raw_images = pipetree.file_folder("cat_pictures", "./local_path_to_cat_images/")
+# Function takes arguments in the same order as the pipeline item inputs
+def my_image_preprocess_function(raw_images, preprocess_parameters):
+  if preprocess_parameters["PCA"] is True:
+    pipetree.log("PCA enabled")
+  for image in raw_images:
+    yield some_preprocess_function(image)
 
-# Images will only be preprocessed once, then stored on s3
-preprocess_images = {
-  "name": "preprocessed_images",
-  "inputs": { "images": raw_images },
-  "outputs": { "images": "file_folder" },
-  "run": my_image_preprocess_function
-}
-
-# Change parameters at any time and a new model will be trained.
-params = pipetree.parameters({ "number_hidden_neurons": 100, "epochs": 200 })
-test_params = pipetree.grid_search_parameters({ "learning_rate": [0.001, 0.01, 0.1, 0.2] })
-
-# One model will automatically be trained for each learning rate
-trained_model = {
-  "name": "trained_model",
-  "inputs": { "images": preprocessed_images, "params": params , "test_params": test_params },
-  "outputs": { "trained_model": "file" },
-  "run": my_training_function
-}
-
-# Setup your pipeline with straightforward options
-pipeline_options = {
-  "pipeline_name": "predict_cat_emotions"
-  "storage": "s3",
-  "cluster": { "max_servers": 10, "server_size": "c2" }
-}
-
-pipetree.run(trained_model, pipeline_options)
+def my_train_model_function(preprocessed_images, model_parameters, test_parameters):
+  print(preprocessed_images.some_folder_object_function())
+  hidden_neurons = int(model_parameters["number_hidden_neurons"])
+  learning_rate = float(test_parameters["learning_rate"])
+  epochs = int(model_parameters["epochs"])
+  for i in xrange(epochs):
+    (error, trained_model) = train_model_one_epoch()
+    # Produce trained model objects to be stored as pipeline artifacts
+    yield { "data": trained_model.serialize(),
+      "metadata": { "error": float(error) }
+  
 ```
 
 ## Future Featurse
