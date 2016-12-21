@@ -65,22 +65,24 @@ def item_metadata(pipeline_stage, item_name, pipeline_options):
     {
       "pipeline_stage": "my_pipeline_stage",
       "pipeline_item": "my_pipeline_item",
-      "artifacts": [
-           { "hash": 0xAB07642..,
-             "tags": ["my_pipeline_run", ...]
-             "antecedents": {"prev_pipeline_stage/prev_pipeline_item": 0xAB22456,
-                             "prev_pipeline_stage/prev_pipeline_item2": 0xAB22102,
+      "artifacts": {
+           "0xAA096750xAB076420xAF11235": 
+              { "definition_hash": 0xAB07642,
+                "specific_hash": 0xAF11235,
+                "tags": ["my_pipeline_run", ...]
+                "antecedents": {"prev_pipeline_stage/prev_pipeline_item": 0xAB22456,
+                                "prev_pipeline_stage/prev_pipeline_item2": 0xAB22102,
                             },
-             "time": 1482279992.034,
-             "metadata": { "loss": 0.4 }
+                "time": 1482279992.034,
+                "metadata": { "loss": 0.4 }
            }, 
            ...
-        ]
+        }
       }
     }
     """
 
-    # TODO: Currently throws an exception if file metadata DNE for testing purposes
+    # TODO: Currently throws an exception if file metadata DNE, for testing purposes
     metaf = os.path.join(local_storage_path(pipeline_options), pipeline_stage["name"], item_name, METAFILE)
     with open(metaf, 'r') as mfp:
         meta = json.load(mfp)
@@ -99,44 +101,40 @@ def hash_file(filepath):
             buf = afile.read(BLOCKSIZE)
     return hasher.hexdigest()
 
-def file_handle(pipeline_stage, item_name, pipeline_options, version=None):
+def choose_artifact(pipeline_stage, item_name, meta, definition_hash=None, specific_hash=None):
     """
-    Returns a file handle (object supporting .read(), .close()) to an artifact for a given item.
-    Defaults to returning a file handle to the most recently produced artifact.
-    """
+    Choose an artifact for a given pipeline item, given the state of the current local cache. 
 
-    fpath = pipeline_item["local_filepath"]
+    Currently defaults to returning the most recently produced artifact for an item.
+
+    Eventually a pipeline stage will be able to specify its own default artifact selection method
+    for each pipeline item:
+    { "artifact_selection": { "trained_model_item": "min__loss" } }
+    """
     storage_path = local_storage_path(pipeline_options)
+    meta = item_metadata(pipeline_stage, item_name, pipeline_options)
+    if meta is None or meta.get("artifacts", None) is None or len(meta["artifacts"]) is 0:
+        return None
 
-    versions = file_versions(pipeline_item, pipeline_options)
-    if len(list(versions)) == 0:
-        # Create file and continue
-        hsh = hash_file(fpath)
-        new_fpath = os.path.join(local_storage_path(pipeline_options), pipeline_item["name"], hsh)
-        meta_fpath = os.path.join(local_storage_path(pipeline_options), pipeline_item["name"], METAFILE)
-        obj = {"hashes": [hsh]}
-        with open(meta_fpath, 'w') as mfp:
-            json.dump(obj, mfp)
-        shutil.copyfile(fpath, new_fpath)
-        return open(new_fpath, 'r')
-    else:
-        # Determine most recent file and open that one
-        if version is None:
-            meta = file_metadata(pipeline_item, pipeline_options)
-            version = meta["hashes"][len(meta["hashes"]) - 1]
-        return open(
-            os.path.join(local_storage_path(pipeline_options), pipeline_item["name"], version), 'r')
-
-def list_artifacts(pipeline_stage, item_name, pipeline_options):
-    """
-    Returns a list of all locally stored artifacts for a given pipeline item
-    """
+    if "artifact_selection" in pipeline_stage:
+        raise Exception("Custom artifact selection methods not yet implemented")
     
-    version_folder = os.path.join(local_storage_path(pipeline_options), pipeline_item["name"])
-    if not os.path.exists(version_folder):
-        distutils.dir_util.mkpath(version_folder)    
-    listing = os.listdir(version_folder)
-    return filter(lambda x: x not in METADATA_FILES, listing)
+    # For now, just return the most recently created artifact
+    hwm = 0
+    chosen_artifact = None
+    for artifact in meta["artifacts"]:
+        if artifact["time"] > hwm:
+            hwm = artifact["time"]
+            chosen_artifact = artifact
+            
+    return chosen_artifact
+
+    
+def file_handle(pipeline_stage, item_name, pipeline_options, combined_hash):
+    """
+    Returns a file handle (object supporting .read(), .close()) to an artifact.
+    """
+    return open(os.path.join(local_storage_path(pipeline_options), pipeline_stage, item_name, combined_hash), 'r')
 
 def folder(pipeline_item, pipeline_options):
     """
