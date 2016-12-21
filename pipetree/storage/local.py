@@ -23,7 +23,7 @@
 local.py
 =========
 
-Provides storage mechanisms for local storage and retrieval of files.
+Provides storage mechanisms for local storage and retrieval of artifacts.
 """
 import os.path
 import distutils.dir_util
@@ -36,35 +36,52 @@ from pipetree.storage import storage
 METAFILE = "pipeline.meta"
 METADATA_FILES = [METAFILE]
 
-def require_type(pipeline_item, ty):
+def require_type(pipeline_stage, ty):
     """
-    Helper function to require that a pipeline item has a particular type
+    Helper function to require that a pipeline stage has a particular type
     """
-    if "type" not in pipeline_item:
-        raise Exception("Pipeline item has no type")
+    if "type" not in pipeline_stage:
+        raise Exception("Pipeline stage has no type")
 
-    if pipeline_item["type"] != ty:
-        raise Exception("Invalid pipeline item type")
+    if pipeline_stage["type"] != ty:
+        raise Exception("Invalid pipeline stage type ")
 
-def prune_versions(pipeline_item, pipeline_options):
+def prune_versions(pipeline_stage, item_name, pipeline_options):
     """
-    Prunes versions of pipeline_item depending on settings.
+    Prunes local versions of pipeline_stage depending on settings.
     Common configurations:
       { "cache_prune": "keep_most_recent", "cache_size": 10... }
       { "cache_prune": "keep_lowest_meta", "cache_meta_value": "trained_model_loss" }
     """
-    require_type(pipeline_item, PLI_FILE_TYPE)
+    require_type(pipeline_stage, PLI_FILE_TYPE)
     raise Exception("Pruning not yet implemented")
 
-def file_metadata(pipeline_item, pipeline_options):
+def item_metadata(pipeline_stage, item_name, pipeline_options):
     """
-    Returns the file metadata for a given pipeline item, or None if none exists
+    Returns the local metadata for a given item, or None if none exists.
+    Returns metadata for all instantiated artifacts from the item
+
+    Item metadata structure: 
+    {
+      "pipeline_stage": "my_pipeline_stage",
+      "pipeline_item": "my_pipeline_item",
+      "artifacts": [
+           { "hash": 0xAB07642..,
+             "tags": ["my_pipeline_run", ...]
+             "antecedents": {"prev_pipeline_stage/prev_pipeline_item": 0xAB22456,
+                             "prev_pipeline_stage/prev_pipeline_item2": 0xAB22102,
+                            },
+             "time": 1482279992.034,
+             "metadata": { "loss": 0.4 }
+           }, 
+           ...
+        ]
+      }
+    }
     """
-    require_type(pipeline_item, storage.PLI_FILE_TYPE)
 
     # TODO: Currently throws an exception if file metadata DNE for testing purposes
-    
-    metaf = os.path.join(local_storage_path(pipeline_options), pipeline_item["name"], METAFILE)
+    metaf = os.path.join(local_storage_path(pipeline_options), pipeline_stage["name"], item_name, METAFILE)
     with open(metaf, 'r') as mfp:
         meta = json.load(mfp)
     return meta
@@ -82,17 +99,13 @@ def hash_file(filepath):
             buf = afile.read(BLOCKSIZE)
     return hasher.hexdigest()
 
-def file_handle(pipeline_item, pipeline_options, version=None):
+def file_handle(pipeline_stage, item_name, pipeline_options, version=None):
     """
-    Returns a file handle (object supporting .read(), .close()) for a given
-    file type pipeline_item.
-
-    Defaults to returning the most recently created version.
+    Returns a file handle (object supporting .read(), .close()) to an artifact for a given item.
+    Defaults to returning a file handle to the most recently produced artifact.
     """
 
-    require_type(pipeline_item, storage.PLI_FILE_TYPE)
     fpath = pipeline_item["local_filepath"]
-
     storage_path = local_storage_path(pipeline_options)
 
     versions = file_versions(pipeline_item, pipeline_options)
@@ -114,11 +127,11 @@ def file_handle(pipeline_item, pipeline_options, version=None):
         return open(
             os.path.join(local_storage_path(pipeline_options), pipeline_item["name"], version), 'r')
 
-def file_versions(pipeline_item, pipeline_options):
+def list_artifacts(pipeline_stage, item_name, pipeline_options):
     """
-    Returns a list of all locally stored versions of a file pipeline item
+    Returns a list of all locally stored artifacts for a given pipeline item
     """
-    require_type(pipeline_item, storage.PLI_FILE_TYPE)
+    
     version_folder = os.path.join(local_storage_path(pipeline_options), pipeline_item["name"])
     if not os.path.exists(version_folder):
         distutils.dir_util.mkpath(version_folder)    
