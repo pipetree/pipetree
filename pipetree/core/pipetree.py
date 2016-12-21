@@ -46,8 +46,17 @@ def need_to_run_pipeline_stage(config_obj, previous_stages_rerunning, stage_name
     { "rerun": True/False } or
     { "determine_rerun_after": ["stage_name_0", "stage_name_1", ...] }
     """
+
+    # If the pipeline stage has caching disabled, we need to run the stage.
+    
+    # Check if we're re-running any stages that we depend on. If so, bail out.
+
     # Step 0: Acquire artifact metadata for all input items
-    #         - Abort if required artifacts DNE
+
+    #         If any items we require don't have any artifacts, we need to run the stage. 
+
+    # Step 1: Generate pre-job-artifact-hashes for items produced by this pipeline job.
+    #         If any of these artifact versions don't yet exist, we need to run the stage. 
     
     raise Exception("Not yet implemented")
 
