@@ -23,14 +23,14 @@
 core/pipetree.py
 =========
 
-Provides core pipetree functionality, independent of storage backend
+Implementation of core pipeline semantics using pure functions
 """
 
 def topo_sort_pipeline_stages(config_obj):
     """
     Return a sorted list of pipeline stages, given a config_obj
 
-    Raises an exception if there was a cycle in the configuration. 
+    Raises an exception if there was a cycle in the configuration.
     """
     raise Exception("Not yet implemented")
 
@@ -52,7 +52,6 @@ def need_to_run_pipeline_stage(config_obj, previous_stages_rerunning, stage_name
     # Check if we're re-running any stages that we depend on. If so, bail out.
 
     # Step 0: Acquire artifact metadata for all input items
-
     #         If any items we require don't have any artifacts, we need to run the stage. 
 
     # Step 1: Generate pre-job-artifact-hashes for items produced by this pipeline job.
@@ -69,20 +68,6 @@ def required_items(config_obj, stage_name):
     """
     raise Exception("Not yet implemented")
     
-def run_pipeline_stage(config_obj, stage_name):
-    """
-    Run a pipeline stage locally, given a config object and a stage name
-    """
-
-    # Step 0: Acquire artifact metadata for all input items
-    #         - Abort if required artifacts DNE
-    
-    # Step 1: Download / retrieve cached artifacts
-
-    # Step 2: Call appropriate pipeline job method based on pipeline stage type
-    #         types: ["file", "file_folder", "function", ...]
-    
-    raise Exception("Not yet implemented")
 
 def generate_artifact_meta(pipeline_stage, item_name, specific_hash, antecedents):
     """

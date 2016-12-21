@@ -25,3 +25,18 @@ worker/worker.py
 
 Worker to execute pipeline stages and produce artifacts
 """
+
+def run_pipeline_stage(config_obj, stage_name):
+    """
+    Run a pipeline stage locally, given a config object and a stage name
+    """
+
+    # Step 0: Acquire artifact metadata for all input items
+    #         - Abort if required artifacts DNE
+    
+    # Step 1: Download / retrieve cached artifacts
+
+    # Step 2: Call appropriate pipeline job method based on pipeline stage type
+    #         types: ["file", "file_folder", "function", ...]
+    
+    raise Exception("Not yet implemented")
