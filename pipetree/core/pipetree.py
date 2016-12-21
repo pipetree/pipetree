@@ -46,6 +46,9 @@ def need_to_run_pipeline_stage(config_obj, previous_stages_rerunning, stage_name
     { "rerun": True/False } or
     { "determine_rerun_after": ["stage_name_0", "stage_name_1", ...] }
     """
+    # Step 0: Acquire artifact metadata for all input items
+    #         - Abort if required artifacts DNE
+    
     raise Exception("Not yet implemented")
 
 def required_items(config_obj, stage_name):
@@ -72,10 +75,13 @@ def run_pipeline_stage(config_obj, stage_name):
     
     raise Exception("Not yet implemented")
 
-def generate_artifact_meta(pipeline_stage, item_name, antecedents):
+def generate_artifact_meta(pipeline_stage, item_name, specific_hash, antecedents):
     """
     Generate metadata (hashes, time, etc) for an artifact. These will be aggregated into
     the item metadata structure.
+    
+    This method will generate the definition_hash as well as the antecedent hash, but requires
+    the calling method to provide the specific_hash for the artifact.
 
     Item metadata structure: 
     {
