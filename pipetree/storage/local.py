@@ -46,20 +46,18 @@ def require_type(pipeline_stage, ty):
     if pipeline_stage["type"] != ty:
         raise Exception("Invalid pipeline stage type ")
 
-def prune_versions(pipeline_stage, item_name, pipeline_options):
+def prune_versions(pipeline_stage, item_name, pipeline_options, keep_number=10):
     """
     Prunes local versions of pipeline_stage depending on settings.
-    Common configurations:
-      { "cache_prune": "keep_most_recent", "cache_size": 10... }
-      { "cache_prune": "keep_lowest_meta", "cache_meta_value": "trained_model_loss" }
     """
+    
     require_type(pipeline_stage, PLI_FILE_TYPE)
     raise Exception("Pruning not yet implemented")
 
 def item_metadata(pipeline_stage, item_name, pipeline_options):
     """
     Returns the local metadata for a given item, or None if none exists.
-    Returns metadata for all instantiated artifacts from the item
+    Contains metadata for all instantiated artifacts from the item
 
     Item metadata structure: 
     {
@@ -70,8 +68,8 @@ def item_metadata(pipeline_stage, item_name, pipeline_options):
               { "definition_hash": 0xAB07642,
                 "specific_hash": 0xAF11235,
                 "tags": ["my_pipeline_run", ...]
-                "antecedents": {"prev_pipeline_stage/prev_pipeline_item": 0xAB22456,
-                                "prev_pipeline_stage/prev_pipeline_item2": 0xAB22102,
+                "antecedents": {"prev_pipeline_stage/prev_pipeline_item": 0xAB224560xAB...,
+                                "prev_pipeline_stage/prev_pipeline_item2": 0xAB221020xBF...,
                             },
                 "time": 1482279992.034,
                 "metadata": { "loss": 0.4 }
@@ -101,7 +99,7 @@ def hash_file(filepath):
             buf = afile.read(BLOCKSIZE)
     return hasher.hexdigest()
 
-def choose_artifact(pipeline_stage, item_name, meta, definition_hash=None, specific_hash=None):
+def choose_artifact(pipeline_stage, item_name):
     """
     Choose an artifact for a given pipeline item, given the state of the current local cache. 
 
@@ -109,25 +107,14 @@ def choose_artifact(pipeline_stage, item_name, meta, definition_hash=None, speci
 
     Eventually a pipeline stage will be able to specify its own default artifact selection method
     for each pipeline item:
-    { "artifact_selection": { "trained_model_item": "min__loss" } }
+    { ..., "artifact_selection": { "trained_model_item": "min__loss" }, ... }
     """
     storage_path = local_storage_path(pipeline_options)
     meta = item_metadata(pipeline_stage, item_name, pipeline_options)
     if meta is None or meta.get("artifacts", None) is None or len(meta["artifacts"]) is 0:
         return None
 
-    if "artifact_selection" in pipeline_stage:
-        raise Exception("Custom artifact selection methods not yet implemented")
-    
-    # For now, just return the most recently created artifact
-    hwm = 0
-    chosen_artifact = None
-    for artifact in meta["artifacts"]:
-        if artifact["time"] > hwm:
-            hwm = artifact["time"]
-            chosen_artifact = artifact
-            
-    return chosen_artifact
+    return pipetree.choose_artifact(pipeline_stage, item_name, meta)
 
     
 def file_handle(pipeline_stage, item_name, pipeline_options, combined_hash):
