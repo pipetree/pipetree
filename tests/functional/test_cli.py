@@ -57,6 +57,7 @@ class TestInit(unittest.TestCase):
             self.assertEqual(DEFAULT_CONFIG % self.dirname,
                              f.read())
 
+
 class TestConfig(unittest.TestCase):
     def setUp(self):
         self.dirname = 'foo'
@@ -77,7 +78,10 @@ class TestConfig(unittest.TestCase):
         self.runner.invoke(cli, ['config', 'set', 'project_name', 'bar'])
         result = self.runner.invoke(cli, ['config', 'get', 'project_name'])
         self.assertEqual(result.output, 'bar\n')
-        self.runner.invoke(cli, ['config', 'set', 'project_name', self.dirname])
+        self.runner.invoke(cli, ['config',
+                                 'set',
+                                 'project_name',
+                                 self.dirname])
 
     @mock.patch('subprocess.check_call')
     def test_set_edit(self, mock_cc):
