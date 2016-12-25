@@ -29,10 +29,6 @@ class BasePipelineStage(object):
         if self._validate_config(config):
             self._config = config
 
-    @property
-    def name(self):
-        return self._config.name
-
     def validate_prereqs(self, previous_stages):
         raise NotImplementedError
 
