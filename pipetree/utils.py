@@ -19,22 +19,16 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
-import shutil
-import tempfile
-import contextlib
+import re
 
 
-@contextlib.contextmanager
-def isolated_filesystem():
-    cwd = os.getcwd()
-    t = tempfile.mkdtemp()
-    os.chdir(t)
-    try:
-        yield t
-    finally:
-        os.chdir(cwd)
-        try:
-            shutil.rmtree(t)
-        except (OSError, IOError):
-            pass
+PYTHONIC_NAME = re.compile('^[_a-zA-Z][_a-zA-Z0-9]*$')
+
+
+def name_is_pythonic(name):
+    return PYTHONIC_NAME.match(name)
+
+
+def attach_config_to_object(obj, config):
+    for key, value in config.items():
+        setattr(obj, key, value)

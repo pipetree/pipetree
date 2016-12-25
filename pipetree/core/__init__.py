@@ -19,38 +19,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import unittest
-import sys
-import os
 
-from  pipetree.storage import local, storage
 
-class TestBasicLocal(unittest.TestCase):
-    def test_filehandle(self):
-        """
-        Test local file pipeline creation
-        """
-        testcontents = 'gorb' * 1000
-        pipeline_item = {"name": "test_file",
-                         "type": storage.PLI_FILE_TYPE,
-                         "local_filepath": "./testfile"}
-        
-        with open('testfile', 'w') as f:
-            f.write(testcontents)        
-        with local.file_handle(pipeline_item, {}) as fh:
-            contents = fh.read()
-            self.assertEqual(testcontents, contents)
-        
-    def test_versions(self):
-        """
-        Test that when we create a new version of a pipeline item,
-        that item becomes the default and has a new hash
-        """
-        self.assertTrue(True)
-
-    def test_pruning(self):
-        """
-        Test that files get pruned after a certain number of versions,
-        according to the given policy
-        """
-        self.assertTrue(True)
+class DependencyGraphNode(object):
+    def __init__(self):
+        pass

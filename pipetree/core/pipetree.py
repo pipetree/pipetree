@@ -32,15 +32,15 @@ def topo_sort_pipeline_stages(config_obj):
 
     Raises an exception if there was a cycle in the configuration.
     """
-    raise Exception("Not yet implemented")
+    raise NotImplementedError
 
 def need_to_run_pipeline_stage(config_obj, previous_stages_rerunning, stage_name):
     """
-    Determine whether a given pipeline stage needs to be re-run. 
-    
+    Determine whether a given pipeline stage needs to be re-run.
+
     We include a list of previous stages that we're presently re-running,
     so that if this stage depends on them we can determine if this stage needs to
-    re-run once they're complete. 
+    re-run once they're complete.
 
     Returns an object:
     { "rerun": True/False } or
@@ -48,41 +48,41 @@ def need_to_run_pipeline_stage(config_obj, previous_stages_rerunning, stage_name
     """
 
     # If the pipeline stage has caching disabled, we need to run the stage.
-    
+
     # Check if we're re-running any stages that we depend on. If so, bail out.
 
     # Step 0: Acquire artifact metadata for all input items
-    #         If any items we require don't have any artifacts, we need to run the stage. 
+    #         If any items we require don't have any artifacts, we need to run the stage.
 
     # Step 1: Generate pre-job-artifact-hashes for items produced by this pipeline job.
-    #         If any of these artifact versions don't yet exist, we need to run the stage. 
-    
+    #         If any of these artifact versions don't yet exist, we need to run the stage.
+
     raise Exception("Not yet implemented")
 
 def required_items(config_obj, stage_name):
     """
     Returns a list of items required to run the job for a particular stage
-    Format: [{"stage_name": "my_stage_name", 
+    Format: [{"stage_name": "my_stage_name",
               "item_name": "my_item_name",
               "artifact_selection" (future): "min__loss" }]
     """
     raise Exception("Not yet implemented")
-    
+
 
 def generate_artifact_meta(pipeline_stage, item_name, specific_hash, antecedents):
     """
     Generate metadata (hashes, time, etc) for an artifact. These will be aggregated into
     the item metadata structure.
-    
+
     This method will generate the definition_hash as well as the antecedent hash, but requires
     the calling method to provide the specific_hash for the artifact.
 
-    Item metadata structure: 
+    Item metadata structure:
     {
       "pipeline_stage": "my_pipeline_stage",
       "pipeline_item": "my_pipeline_item",
       "artifacts": {
-           "0xAA096750xAB076420xAF11235": 
+           "0xAA096750xAB076420xAF11235":
               { "definition_hash": 0xAB07642,
                 "specific_hash": 0xAF11235,
                 "tags": ["my_pipeline_run", ...]
@@ -91,16 +91,16 @@ def generate_artifact_meta(pipeline_stage, item_name, specific_hash, antecedents
                             },
                 "time": 1482279992.034,
                 "metadata": { "loss": 0.4 }
-           }, 
+           },
            ...
         }
       }
     }
 
     """
-    raise Exception("Not yet implemented")
+    raise NotImplementedError
 
-def choose_artifact(pipeline_stage, item_name, meta)
+def choose_artifact(pipeline_stage, item_name, meta):
     """
     Choose an artifact for a given pipeline item, given a pipeline's metadata.
 
@@ -110,10 +110,10 @@ def choose_artifact(pipeline_stage, item_name, meta)
     for each pipeline item:
     { ..., "artifact_selection": { "trained_model_item": "min__loss" }, ... }
     """
-    
+
     if "artifact_selection" in pipeline_stage:
         raise Exception("Custom artifact selection methods not yet implemented")
-    
+
     # For now, just return the most recently created artifact
     hwm = 0
     chosen_artifact = None
@@ -121,5 +121,5 @@ def choose_artifact(pipeline_stage, item_name, meta)
         if artifact["time"] > hwm:
             hwm = artifact["time"]
             chosen_artifact = artifact
-            
+
     return chosen_artifact

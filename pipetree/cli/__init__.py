@@ -19,16 +19,16 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import os
 import json
 import click
 import subprocess
 
-from .utils import _get_config_path, _assert_in_project_dir
-
+from pipetree.cli.utils import _get_config_path, _assert_in_project_dir
 from pipetree import __version__ as pipetree_version
 from pipetree.templates import DEFAULT_CONFIG
+from pipetree.pipeline import PipelineFactory
+from pipetree.exceptions import PipetreeError
 
 
 @click.group()
@@ -97,6 +97,23 @@ def config_edit(ctx):
                            os.path.join(ctx.obj['project_dir'],
                                         '.pipetree',
                                         'config.json')])
+
+
+@cli.command('verify-config')
+@click.argument('config', required=True)
+@click.pass_context
+def verify_pipeline_config(ctx, config):
+    factory = PipelineFactory()
+    try:
+        factory.generate_pipeline_from_file(config)
+    except FileNotFoundError:
+        click.echo('Could not find file: %s' % config)
+    except json.decoder.JSONDecodeError as e:
+        click.echo('JSON decoding error "%s"' % str(e))
+    except PipetreeError as e:
+        click.echo(str(e))
+    else:
+        click.echo('Successfully generated pipeline from %s' % config)
 
 
 def main():

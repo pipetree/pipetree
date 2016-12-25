@@ -19,22 +19,36 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
-import shutil
-import tempfile
-import contextlib
+import unittest
+from pipetree.config import PipelineStageConfig
+from pipetree.exceptions import NonPythonicNameError, IncorrectPipelineStageNameError
 
+class TestPipelineStageConfig(unittest.TestCase):
+    def setUp(self):
+        pass
 
-@contextlib.contextmanager
-def isolated_filesystem():
-    cwd = os.getcwd()
-    t = tempfile.mkdtemp()
-    os.chdir(t)
-    try:
-        yield t
-    finally:
-        os.chdir(cwd)
+    def test_initialize_with_bad_key(self):
         try:
-            shutil.rmtree(t)
-        except (OSError, IOError):
+            PipelineStageConfig('invalid name', {})
+            print('This should have raised an error, the name is invalid')
+            self.fail()
+        except NonPythonicNameError:
+            pass
+
+    def test_initialize_with_bad_dictionary(self):
+        try:
+            PipelineStageConfig('valid_name', 'not a dict')
+            print('This should have raised an error, the value isn\'t a dict')
+            self.fail()
+        except TypeError:
+            pass
+
+    def test_initialize_with_bad_type(self):
+        try:
+            PipelineStageConfig('valid_name', {
+                'type': 'InvalidPipelineType'
+            })
+            print('This should have raised an error, the type is invalid.')
+            self.fail()
+        except IncorrectPipelineStageNameError:
             pass

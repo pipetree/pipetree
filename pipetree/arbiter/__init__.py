@@ -19,22 +19,3 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
-import shutil
-import tempfile
-import contextlib
-
-
-@contextlib.contextmanager
-def isolated_filesystem():
-    cwd = os.getcwd()
-    t = tempfile.mkdtemp()
-    os.chdir(t)
-    try:
-        yield t
-    finally:
-        os.chdir(cwd)
-        try:
-            shutil.rmtree(t)
-        except (OSError, IOError):
-            pass

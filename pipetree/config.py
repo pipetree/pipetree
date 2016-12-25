@@ -19,22 +19,29 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
-import shutil
-import tempfile
-import contextlib
+from pipetree import STAGES
+from pipetree.utils import attach_config_to_object
+from pipetree.exceptions import IncorrectPipelineStageNameError,\
+    MissingPipelineStageTypeError, NonPythonicNameError
+from pipetree.utils import name_is_pythonic
 
 
-@contextlib.contextmanager
-def isolated_filesystem():
-    cwd = os.getcwd()
-    t = tempfile.mkdtemp()
-    os.chdir(t)
-    try:
-        yield t
-    finally:
-        os.chdir(cwd)
+class PipelineStageConfig(object):
+    def __init__(self, key, data):
+        if not name_is_pythonic(key):
+            raise NonPythonicNameError(symbol=key)
+        if not isinstance(data, dict):
+            raise TypeError('Expected type \'dict\', found %s instead.'
+                            % type(data))
+        attach_config_to_object(self, data)
+        self.name = key
+
         try:
-            shutil.rmtree(t)
-        except (OSError, IOError):
-            pass
+            if not self.type.endswith('PipelineStage'):
+                self.type += 'PipelineStage'
+            if self.type not in STAGES:
+                raise IncorrectPipelineStageNameError(
+                    types=list(STAGES.keys()))
+            self.parent_class = STAGES[self.type]
+        except KeyError:
+            raise MissingPipelineStageTypeError(types=list(STAGES.keys()))

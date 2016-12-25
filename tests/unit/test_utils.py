@@ -19,22 +19,25 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import os
-import shutil
-import tempfile
-import contextlib
+import unittest
+from pipetree.utils import name_is_pythonic, attach_config_to_object
 
 
-@contextlib.contextmanager
-def isolated_filesystem():
-    cwd = os.getcwd()
-    t = tempfile.mkdtemp()
-    os.chdir(t)
-    try:
-        yield t
-    finally:
-        os.chdir(cwd)
-        try:
-            shutil.rmtree(t)
-        except (OSError, IOError):
-            pass
+class TestUtils(unittest.TestCase):
+    def test_is_pythonic_name(self):
+        self.assertFalse(name_is_pythonic('hello there'))
+        self.assertFalse(name_is_pythonic('1this_is_a_test'))
+        self.assertTrue(name_is_pythonic('hello_there'))
+        self.assertTrue(name_is_pythonic('FelloThereMaiFriend'))
+        self.assertTrue(name_is_pythonic('_function_name_'))
+
+    def test_attach_config_to_object(self):
+        config = {
+            'integer': 1,
+            'numlist': [1, 2, 3],
+            'string': 'foobarbaz'
+        }
+        obj = type("TestObj", (object,), {})
+        attach_config_to_object(obj, config)
+        for k, v in config.items():
+            self.assertEqual(v, getattr(obj, k))

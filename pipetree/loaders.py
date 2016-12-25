@@ -20,21 +20,38 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
-import shutil
-import tempfile
-import contextlib
+import json
+from collections import OrderedDict
+
+from pipetree.config import PipelineStageConfig
+from pipetree.exceptions import InvalidPipelineConfigError
 
 
-@contextlib.contextmanager
-def isolated_filesystem():
-    cwd = os.getcwd()
-    t = tempfile.mkdtemp()
-    os.chdir(t)
-    try:
-        yield t
-    finally:
-        os.chdir(cwd)
-        try:
-            shutil.rmtree(t)
-        except (OSError, IOError):
-            pass
+def _append_json_ext(path):
+    if path.endswith('.json'):
+        return path
+    return '%s.json' % path
+
+
+class JSONFileLoader(object):
+    """Parent class of any loader that reads from a json file"""
+    def load_file(self, path):
+        full_path = _append_json_ext(path)
+        with open(path, 'rb') as f:
+            content = f.read().decode('utf-8')
+            return json.loads(content, object_pairs_hook=OrderedDict)
+
+
+class PipelineConfigLoader():
+    LOADER_CLASS = JSONFileLoader
+
+    def __init__(self, file_loader=None):
+        if file_loader is None:
+            file_loader = self.LOADER_CLASS()
+        self._file_loader = file_loader
+
+    def load_file(self, path):
+        data = self._file_loader.load_file(path)
+        for name, pipeline_stage in data.items():
+            config = PipelineStageConfig(name, pipeline_stage)
+            yield config
