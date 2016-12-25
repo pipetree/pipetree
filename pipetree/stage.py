@@ -50,10 +50,10 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
         super().__init__(config)
         self._artifact_source = LocalFileArtifactProvider(config.filepath)
 
-    def __source_artifact(self, artifact_name):
+    def _source_artifact(self, artifact_name):
         pass
 
-    def __yield_artifacts(self):
+    def _yield_artifacts(self):
         pass
 
     def _validate_config(self, config):
@@ -64,6 +64,28 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
             raise InvalidConfigurationFileError(
                 configurable=self.__class__.__name__,
                 reason='expected \'filepath\' entry of type string.')
+        return True
+
+
+class ExecutorPipelineStage(BasePipelineStage):
+    def __init__(self, config):
+        super().__init__(config)
+
+    def _source_artifact(self, artifact_name):
+        pass
+
+    def _yield_artifacts(self):
+        pass
+
+    def _validate_config(self, config):
+        if not hasattr(config, 'input'):
+            raise InvalidConfigurationFileError(
+                configurable=self.__class__.__name__,
+                reason='expected \'input\' entry of type array')
+        if not hasattr(config, 'execute'):
+            raise InvalidConfigurationFileError(
+                configurable=self.__class__.__name__,
+                reason='expected \'execute\' entry of type string')
         return True
 
 

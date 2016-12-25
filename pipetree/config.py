@@ -22,7 +22,7 @@
 from pipetree import STAGES
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import IncorrectPipelineStageNameError,\
-    MissingPipelineStageTypeError, NonPythonicNameError
+    NonPythonicNameError
 from pipetree.utils import name_is_pythonic
 
 
@@ -36,12 +36,9 @@ class PipelineStageConfig(object):
         attach_config_to_object(self, data)
         self.name = key
 
-        try:
-            if not self.type.endswith('PipelineStage'):
-                self.type += 'PipelineStage'
-            if self.type not in STAGES:
-                raise IncorrectPipelineStageNameError(
-                    types=list(STAGES.keys()))
-            self.parent_class = STAGES[self.type]
-        except KeyError:
-            raise MissingPipelineStageTypeError(types=list(STAGES.keys()))
+        if not self.type.endswith('PipelineStage'):
+            self.type += 'PipelineStage'
+        if self.type not in STAGES:
+            raise IncorrectPipelineStageNameError(
+                types=list(STAGES.keys()))
+        self.parent_class = STAGES[self.type]

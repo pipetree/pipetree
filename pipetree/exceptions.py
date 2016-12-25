@@ -42,13 +42,6 @@ class InvalidPipelineConfigError(PipetreeError):
     message = 'Unable to validate config file \'{config_path}\'. {reason}'
 
 
-class MissingPipelineStageTypeError(PipetreeError):
-    """
-    Raised when a pipeline stage is loaded and does not have a type.
-    """
-    message = 'Pipeline stages must define a type that is one of {types}'
-
-
 class IncorrectPipelineStageNameError(PipetreeError):
     message = 'Pipeline stage type must be one of {types}'
 

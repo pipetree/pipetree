@@ -1,9 +1,10 @@
 __version__ = '0.1.0'
 
-from pipetree.stage import LocalDirectoryPipelineStage
+from pipetree.stage import LocalDirectoryPipelineStage, ExecutorPipelineStage
 
 _STAGES = [
-    LocalDirectoryPipelineStage
+    LocalDirectoryPipelineStage,
+    ExecutorPipelineStage
 ]
 STAGES = {cls.__name__: cls for cls in _STAGES}
 

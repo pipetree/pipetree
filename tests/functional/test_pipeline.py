@@ -24,7 +24,7 @@ import unittest
 from tests import isolated_filesystem
 from collections import OrderedDict
 from pipetree.pipeline import PipelineFactory
-
+from pipetree.exceptions import InvalidConfigurationFileError
 
 PIPELINE_CONFIG = """
 {
@@ -87,3 +87,53 @@ class TestPipelineLoading(unittest.TestCase):
         with open(filename, 'w') as f:
             f.write(PIPELINE_CONFIG)
         self.factory.generate_pipeline_from_file(filename)
+
+    def test_generate_executor_pipeline(self):
+        config = OrderedDict({
+            'StageA': {
+                'type': 'LocalDirectoryPipelineStage',
+                'filepath': self.dirname
+            },
+            'StageB': {
+                'input': 'StageA',
+                'type': 'ExecutorPipelineStage',
+                'execute': 'package.file.function'
+            },
+        })
+        self.factory.generate_pipeline_from_dict(config)
+
+    def test_generage_executor_no_input(self):
+        config = OrderedDict({
+            'StageA': {
+                'type': 'LocalDirectoryPipelineStage',
+                'filepath': self.dirname
+            },
+            'StageB': {
+                'type': 'ExecutorPipelineStage',
+                'execute': 'package.file.function'
+            },
+        })
+        try:
+            self.factory.generate_pipeline_from_dict(config)
+            print('Should have failed, no input key')
+            self.fail()
+        except InvalidConfigurationFileError:
+            pass
+
+    def test_generage_executor_no_input(self):
+        config = OrderedDict({
+            'StageA': {
+                'type': 'LocalDirectoryPipelineStage',
+                'filepath': self.dirname
+            },
+            'StageB': {
+                'input': 'StageA',
+                'type': 'ExecutorPipelineStage'
+            },
+        })
+        try:
+            self.factory.generate_pipeline_from_dict(config)
+            print('Should have failed, no execute key')
+            self.fail()
+        except InvalidConfigurationFileError:
+            pass
