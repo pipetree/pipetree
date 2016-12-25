@@ -3,3 +3,6 @@ branch = True
 
 [report]
 include = pipetree/*
+exclude_lines =
+    raise NotImplementedError
+    pass
