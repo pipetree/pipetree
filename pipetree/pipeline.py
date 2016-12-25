@@ -64,5 +64,5 @@ class PipelineFactory(object):
 
     def _add_stage(self, stages, config):
         stage = self._stage_factory.create_pipeline_stage(config)
-        # TODO check for pre-req stages, must already be loaded
-        stages[stage.name] = stage
+        if stage.validate_prereqs(stages):
+            stages[stage.name] = stage

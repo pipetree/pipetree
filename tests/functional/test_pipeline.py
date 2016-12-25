@@ -88,19 +88,24 @@ class TestPipelineLoading(unittest.TestCase):
             f.write(PIPELINE_CONFIG)
         self.factory.generate_pipeline_from_file(filename)
 
-    def test_generate_executor_pipeline(self):
+    def test_generate_executor_bad_inputs(self):
         config = OrderedDict({
             'StageA': {
                 'type': 'LocalDirectoryPipelineStage',
                 'filepath': self.dirname
             },
             'StageB': {
-                'input': 'StageA',
+                'inputs': 'StageA',
                 'type': 'ExecutorPipelineStage',
                 'execute': 'package.file.function'
             },
         })
-        self.factory.generate_pipeline_from_dict(config)
+        try:
+            self.factory.generate_pipeline_from_dict(config)
+            print('This should have failed, inputs is not an array')
+            self.fail()
+        except InvalidConfigurationFileError:
+            pass
 
     def test_generage_executor_no_input(self):
         config = OrderedDict({
@@ -120,14 +125,14 @@ class TestPipelineLoading(unittest.TestCase):
         except InvalidConfigurationFileError:
             pass
 
-    def test_generage_executor_no_input(self):
+    def test_generage_executor_no_execute(self):
         config = OrderedDict({
             'StageA': {
                 'type': 'LocalDirectoryPipelineStage',
                 'filepath': self.dirname
             },
             'StageB': {
-                'input': 'StageA',
+                'inputs': ['StageA'],
                 'type': 'ExecutorPipelineStage'
             },
         })
@@ -137,3 +142,36 @@ class TestPipelineLoading(unittest.TestCase):
             self.fail()
         except InvalidConfigurationFileError:
             pass
+
+    def test_generage_executor_bad_reference(self):
+        config = OrderedDict({
+            'StageA': {
+                'type': 'LocalDirectoryPipelineStage',
+                'filepath': self.dirname
+            },
+            'StageB': {
+                'inputs': ['BadReference'],
+                'type': 'ExecutorPipelineStage',
+                'execute': 'package.file.function'
+            },
+        })
+        try:
+            self.factory.generate_pipeline_from_dict(config)
+            print('Should have failed, the input reference is bad')
+            self.fail()
+        except InvalidConfigurationFileError:
+            pass
+
+    def test_generate_executor_correct(self):
+        config = OrderedDict([(
+            'StageA', {
+                'type': 'LocalDirectoryPipelineStage',
+                'filepath': self.dirname
+            }),
+            ('StageB', {
+                'inputs': ['StageA'],
+                'type': 'ExecutorPipelineStage',
+                'execute': 'package.file.function'
+            }),
+        ])
+        self.factory.generate_pipeline_from_dict(config)

@@ -33,10 +33,13 @@ class BasePipelineStage(object):
     def name(self):
         return self._config.name
 
-    def __source_artifact(self, artifact_name):
+    def validate_prereqs(self, previous_stages):
         raise NotImplementedError
 
-    def __yield_artifacts(self):
+    def _source_artifact(self, artifact_name):
+        raise NotImplementedError
+
+    def _yield_artifacts(self):
         raise NotImplementedError
 
     def _validate_config(self):
@@ -49,6 +52,9 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
     def __init__(self, config):
         super().__init__(config)
         self._artifact_source = LocalFileArtifactProvider(config.filepath)
+
+    def validate_prereqs(self, previous_stages):
+        return True
 
     def _source_artifact(self, artifact_name):
         pass
@@ -71,6 +77,14 @@ class ExecutorPipelineStage(BasePipelineStage):
     def __init__(self, config):
         super().__init__(config)
 
+    def validate_prereqs(self, previous_stages):
+        for input in self.inputs:
+            if input not in previous_stages.keys():
+                raise InvalidConfigurationFileError(
+                    configurable=self.__class__.__name__,
+                    reason='input stage \'%s\' not found in pipeline' % input)
+        return True
+
     def _source_artifact(self, artifact_name):
         pass
 
@@ -78,10 +92,15 @@ class ExecutorPipelineStage(BasePipelineStage):
         pass
 
     def _validate_config(self, config):
-        if not hasattr(config, 'input'):
+        if not hasattr(config, 'inputs'):
             raise InvalidConfigurationFileError(
                 configurable=self.__class__.__name__,
                 reason='expected \'input\' entry of type array')
+        if not isinstance(config.inputs, list):
+            raise InvalidConfigurationFileError(
+                configurable=self.__class__.__name__,
+                reason='expected \'input\' to be an array, found a %s'
+                % type(config.inputs))
         if not hasattr(config, 'execute'):
             raise InvalidConfigurationFileError(
                 configurable=self.__class__.__name__,
@@ -102,4 +121,5 @@ class PipelineStageFactory(object):
         return cls(pipeline_config)
 
     def _generate_attributes(self, config):
-        return {}
+        return {k: getattr(config, k) for k in
+                [a for a in dir(config) if not a.startswith('__')]}
