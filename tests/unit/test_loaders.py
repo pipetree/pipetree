@@ -21,6 +21,7 @@
 # SOFTWARE.
 import unittest
 from pipetree.loaders import _append_json_ext
+from pipetree.loaders import PipelineConfigLoader
 
 
 class TestLoaders(unittest.TestCase):
@@ -32,3 +33,20 @@ class TestLoaders(unittest.TestCase):
     def test_json_paths2(self):
         path = 'file.json'
         self.assertEqual(_append_json_ext(path), path)
+
+    def test_load_with_custom_loader(self):
+        def load_file(self, path):
+            return {'key': {
+                'type': 'LocalDirectoryPipelineStage',
+                'meta': 'baz'
+            }}
+
+        cls = type('Foo', (object,), {
+            'load_file': load_file
+        })()
+        loader = PipelineConfigLoader(file_loader=cls)
+        configs = loader.load_file('foo')
+        for config in configs:
+            self.assertEqual(config.name, 'key')
+            self.assertEqual(config.type, 'LocalDirectoryPipelineStage')
+            self.assertEqual(config.meta, 'baz')

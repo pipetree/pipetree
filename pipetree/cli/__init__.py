@@ -26,7 +26,7 @@ import subprocess
 
 from pipetree.cli.utils import _get_config_path, _assert_in_project_dir
 from pipetree import __version__ as pipetree_version
-from pipetree.templates import DEFAULT_CONFIG
+from pipetree.templates import DEFAULT_CONFIG, DEFAULT_HANDLERS
 from pipetree.pipeline import PipelineFactory
 from pipetree.exceptions import PipetreeError
 
@@ -59,6 +59,13 @@ def init(ctx, project_name):
     os.makedirs(pipetree_dir)
     with open(config, 'w') as f:
         f.write(DEFAULT_CONFIG % project_name)
+
+    py_package = os.path.join(project_name, project_name)
+    os.makedirs(py_package)
+    with open(os.path.join(py_package, '__init__.py'), 'w'):
+        pass
+    with open(os.path.join(py_package, '%s.py' % project_name), 'w') as f:
+        f.write(DEFAULT_HANDLERS)
     click.echo("Created new project %s" % project_name)
 
 
