@@ -68,7 +68,7 @@ def item_metadata(pipeline_stage, item_name, pipeline_options):
               { "definition_hash": 0xAB07642,
                 "specific_hash": 0xAF11235,
                 "tags": ["my_pipeline_run", ...]
-                "antecedents": {"prev_pipeline_stage/prev_pipeline_item": 0xAB224560xAB...,
+    "antecedents": {"prev_pipeline_stage/prev_pipeline_item": 0xAB224560xAB...,
                                 "prev_pipeline_stage/prev_pipeline_item2": 0xAB221020xBF...,
                             },
                 "time": 1482279992.034,

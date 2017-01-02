@@ -36,7 +36,6 @@ class ArtifactProvider(object):
     def _validate_config(self):
         raise NotImplementedError
 
-
 class LocalFileArtifactProvider(ArtifactProvider):
     DEFAULTS = {
         'read_content': False

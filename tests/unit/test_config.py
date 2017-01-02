@@ -21,11 +21,19 @@
 # SOFTWARE.
 import unittest
 from pipetree.config import PipelineStageConfig
-from pipetree.exceptions import NonPythonicNameError, IncorrectPipelineStageNameError
+from pipetree.exceptions import NonPythonicNameError, IncorrectPipelineStageNameError, MissingPipelineAttributeError
 
 class TestPipelineStageConfig(unittest.TestCase):
     def setUp(self):
         pass
+
+    def test_initialize_with_no_type(self):
+        try:
+            PipelineStageConfig('valid_name', {})
+            print('This should have raised an error, the config has no type')
+            self.fail()
+        except MissingPipelineAttributeError:
+            pass
 
     def test_initialize_with_bad_key(self):
         try:

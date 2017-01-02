@@ -1,5 +1,4 @@
 # MIT License
-
 # Copyright (c) 2016 Morgan McDermott & John Carlyle
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,7 +21,7 @@
 from pipetree import STAGES
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import IncorrectPipelineStageNameError,\
-    NonPythonicNameError
+    NonPythonicNameError, MissingPipelineAttributeError
 from pipetree.utils import name_is_pythonic
 
 
@@ -36,6 +35,11 @@ class PipelineStageConfig(object):
         attach_config_to_object(self, data)
         self.name = key
 
+        if not hasattr(self, "type"):
+            raise MissingPipelineAttributeError(
+                attribute="type",
+                stage_name=key)
+        
         if not self.type.endswith('PipelineStage'):
             self.type += 'PipelineStage'
         if self.type not in STAGES:

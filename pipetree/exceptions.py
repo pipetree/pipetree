@@ -42,6 +42,13 @@ class InvalidPipelineConfigError(PipetreeError):
     message = 'Unable to validate config file \'{config_path}\'. {reason}'
 
 
+class MissingPipelineAttributeError(PipetreeError):
+    """
+    Raised when a PipelineStageConfig is created with a valid name,
+    but does not have the given attribute
+    """
+    message = 'No {attribute} attribute found for pipeline stage {stage_name}'
+
 class IncorrectPipelineStageNameError(PipetreeError):
     message = 'Pipeline stage type must be one of {types}'
 
@@ -52,6 +59,9 @@ class NonPythonicNameError(PipetreeError):
 
 class ArtifactSourceDoesNotExistError(PipetreeError):
     message = '{provider} cannot source artifacts from {source}'
+
+class InvalidArtifactMetadataError(PipetreeError):
+    message = 'Artifact Metadata Invalid for pipeline stage {stage}, property {property}'
 
 
 class InvalidConfigurationFileError(PipetreeError):
