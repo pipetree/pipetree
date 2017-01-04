@@ -22,13 +22,16 @@
 import os
 import json
 import click
+import shutil
 import subprocess
 
 from pipetree.cli.utils import _get_config_path, _assert_in_project_dir
 from pipetree import __version__ as pipetree_version
-from pipetree.templates import DEFAULT_CONFIG, DEFAULT_HANDLERS
+from pipetree.templates import DEFAULT_CONFIG, DEFAULT_HANDLERS,\
+    DEFAULT_PIPELINE_CONFIG
 from pipetree.pipeline import PipelineFactory
 from pipetree.exceptions import PipetreeError
+from pipetree.arbiter import LocalArbiter
 
 
 @click.group()
@@ -56,15 +59,22 @@ def init(ctx, project_name):
         raise click.Abort()
     pipetree_dir = os.path.join(project_name, '.pipetree')
     config = os.path.join(pipetree_dir, 'config.json')
+    pipeline_config = os.path.join(project_name, 'pipeline.json')
     os.makedirs(pipetree_dir)
     with open(config, 'w') as f:
         f.write(DEFAULT_CONFIG % project_name)
+    with open(pipeline_config, 'w') as f:
+        f.write(DEFAULT_PIPELINE_CONFIG % project_name)
+    lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cat_src_dir = os.path.join(lib_dir, 'examples', 'cats')
+    cat_dst_dir = os.path.join(project_name, 'cat_imgs')
+    shutil.copytree(cat_src_dir, cat_dst_dir)
 
     py_package = os.path.join(project_name, project_name)
     os.makedirs(py_package)
     with open(os.path.join(py_package, '__init__.py'), 'w'):
         pass
-    with open(os.path.join(py_package, '%s.py' % project_name), 'w') as f:
+    with open(os.path.join(py_package, 'main.py'), 'w') as f:
         f.write(DEFAULT_HANDLERS)
     click.echo("Created new project %s" % project_name)
 
@@ -121,6 +131,22 @@ def verify_pipeline_config(ctx, config):
         click.echo(str(e))
     else:
         click.echo('Successfully generated pipeline from %s' % config)
+
+
+@cli.command('local')
+@click.argument('filepath', required=True)
+@click.pass_context
+def local(ctx, filepath):
+    """Runs a local instance of the pipetree arbiter
+    loading the pipeline config specified at FILEPATH"""
+    try:
+        arbiter = LocalArbiter(filepath)
+        arbiter.run_event_loop()
+    except Exception as e:
+        if ctx.obj['debug']:
+            raise e
+        else:
+            print(e)
 
 
 def main():

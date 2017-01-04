@@ -19,7 +19,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import os
 import inspect
+import importlib.util
 from pipetree.storage import LocalDirectoryArtifactProvider,\
     LocalFileArtifactProvider,\
     ParameterArtifactProvider
@@ -38,10 +40,13 @@ class BasePipelineStage(object):
     def _source_artifact(self, artifact_name):
         raise NotImplementedError
 
-    def _yield_artifacts(self):
+    def _yield_artifacts(self, input_artifacts=None):
         raise NotImplementedError
 
     def _validate_config(self):
+        raise NotImplementedError
+
+    def _wrap_item_in_artifact(self, item):
         raise NotImplementedError
 
 
@@ -73,7 +78,7 @@ class ParameterPipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def _yield_artifacts(self):
+    def _yield_artifacts(self, input_artifacts=None):
         pass
 
     def _validate_config(self, config):
@@ -98,8 +103,9 @@ class LocalFilePipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def _yield_artifacts(self):
-        pass
+    def _yield_artifacts(self, input_artifacts=None):
+        for art in self._artifact_source.yield_artifacts():
+            yield art
 
     def _validate_config(self, config):
         """
@@ -109,6 +115,46 @@ class LocalFilePipelineStage(BasePipelineStage):
             raise InvalidConfigurationFileError(
                 configurable=self.__class__.__name__,
                 reason='expected \'filepath\' entry of type string.')
+        return True
+
+
+class IdentityPipelineStage(BasePipelineStage):
+    """A pipeline stage that returns its inputs exactly"""
+
+    def __init__(self, config):
+        super().__init__(config)
+
+    def validate_prereqs(self, previous_stages):
+        for input in self.inputs:
+            if input not in previous_stages.keys():
+                raise InvalidConfigurationFileError(
+                    configurable=self.__class__.__name__,
+                    reason='input stage \'%s\' not found in pipeline' % input)
+        return True
+
+    def _validate_config(self, config):
+        if not hasattr(config, 'inputs'):
+            raise InvalidConfigurationFileError(
+                configurable=self.__class__.__name__,
+                reason='expected \'input\' entry of type array')
+        if not isinstance(config.inputs, list):
+            raise InvalidConfigurationFileError(
+                configurable=self.__class__.__name__,
+                reason='expected \'input\' to be an array, found a %s'
+                % type(config.inputs))
+        return True
+
+    def validate_prereqs(self, previous_stages):
+        return True
+
+    def _source_artifact(self, artifact_name):
+        pass
+
+    def yield_artifacts(self, input_artifacts):
+        for artifact in input_artifacts:
+            yield artifact
+
+    def _validate_config(self, config):
         return True
 
 
@@ -127,8 +173,8 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def _yield_artifacts(self):
-        pass
+    def _yield_artifacts(self, *args, **kwargs):
+        return self._artifact_source.yield_artifacts()
 
     def _validate_config(self, config):
         """
@@ -144,6 +190,21 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
 class ExecutorPipelineStage(BasePipelineStage):
     def __init__(self, config):
         super().__init__(config)
+        self._module = None
+        self._callable = None
+        self._fn = None
+        self._load_module(config)
+
+    def _load_module(self, config):
+        path = os.path.join(*config.execute.split('.')[:-1]) + '.py'
+        print(path)
+        spec = importlib.util.spec_from_file_location(
+            config.name,
+            path)
+        self._module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self._module)
+        self._callable = config.execute.split('.')[-1]
+        self._fn = getattr(self._module, self._callable)
 
     def validate_prereqs(self, previous_stages):
         for input in self.inputs:
@@ -156,8 +217,8 @@ class ExecutorPipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def _yield_artifacts(self):
-        pass
+    def yield_artifacts(self, input_artifacts=None):
+        yield from self._fn()
 
     def _validate_config(self, config):
         if not hasattr(config, 'inputs'):

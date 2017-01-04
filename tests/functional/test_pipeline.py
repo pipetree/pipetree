@@ -46,10 +46,18 @@ class TestPipelineLoading(unittest.TestCase):
         self.fs = isolated_filesystem()
         self.fs.__enter__()
         os.makedirs(self.dirname)
+
         with open(os.path.join(os.getcwd(),
                                self.dirname,
                                self.filename), 'w') as f:
             f.write(self.data)
+
+        # Create package/file.py for executor tests
+        os.makedirs("package")
+        with open(os.path.join(os.getcwd(),
+                               "package",
+                               "file.py"), 'w') as f:
+            f.write('def function(): yield ["a", "b", "c"]')
 
     def tearDown(self):
         self.fs.__exit__(None, None, None)
@@ -203,4 +211,6 @@ class TestPipelineLoading(unittest.TestCase):
                 'execute': 'package.file.function'
             }),
         ])
-        self.factory.generate_pipeline_from_dict(config)
+        pipeline = self.factory.generate_pipeline_from_dict(config)
+        self.assertEqual(set(('StageB',)), pipeline._endpoints)
+        

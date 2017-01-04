@@ -24,26 +24,37 @@ from pipetree.artifact import Artifact
 from pipetree.config import PipelineStageConfig
 from pipetree.exceptions import InvalidArtifactMetadataError
 
+
 class TestArtifact(unittest.TestCase):
     def setUp(self):
         pass
 
     def test_stage_definition_hash_uniqueness(self):
-        stage_a = PipelineStageConfig('some_name', {"foo": "bar", "type": "ExecutorPipelineStage"})
-        stage_b = PipelineStageConfig('some_name', {"foo": "quux", "type": "ExecutorPipelineStage"})
+        stage_a = PipelineStageConfig(
+            'some_name',
+            {"foo": "bar", "type": "ExecutorPipelineStage"})
+        stage_b = PipelineStageConfig(
+            'some_name',
+            {"foo": "quux", "type": "ExecutorPipelineStage"})
         art_a = Artifact(stage_a)
         art_b = Artifact(stage_b)
         self.assertNotEqual(art_a._definition_hash, art_b._definition_hash)
-        
+
     def test_stage_definition_hash_idempotence(self):
-        stage_a = PipelineStageConfig('some_name', {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
-        stage_b = PipelineStageConfig('some_name', {"B": 2, "A": 1, "type": "ExecutorPipelineStage"})
+        stage_a = PipelineStageConfig(
+            'some_name',
+            {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
+        stage_b = PipelineStageConfig(
+            'some_name',
+            {"B": 2, "A": 1, "type": "ExecutorPipelineStage"})
         art_a = Artifact(stage_a)
         art_b = Artifact(stage_b)
         self.assertEqual(art_a._definition_hash, art_b._definition_hash)
 
     def test_metadata_from_dict(self):
-        stage_a = PipelineStageConfig('some_name', {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
+        stage_a = PipelineStageConfig(
+            'some_name',
+            {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
         art_a = Artifact(stage_a)
         d = {
             "meta": {"loss": 0.2},
@@ -63,7 +74,9 @@ class TestArtifact(unittest.TestCase):
             self.assertEqual(d[prop], value)
 
     def test_metadata_from_bad_dict(self):
-        stage_a = PipelineStageConfig('some_name', {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
+        stage_a = PipelineStageConfig(
+            'some_name',
+            {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
         art_a = Artifact(stage_a)
         try:
             art_a.meta_from_dict({})

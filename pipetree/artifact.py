@@ -19,12 +19,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 import hashlib
 import inspect
 import json
 from pipetree.exceptions import InvalidArtifactMetadataError
-
 
 class Artifact(object):
     def __init__(self, pipeline_stage_config, item_type=None):
@@ -50,11 +48,15 @@ class Artifact(object):
         # Hash of the pipeline stage definition JSON
         self._definition_hash = None
 
-        # Specific hash, which varies for different artifact types
+        # Specific hash, the production of which varies for different
+        # artifact types
         self._specific_hash = None
 
         # Name of the pipeline stage that produced this artifact
         self._pipeline_stage = pipeline_stage_config.name
+
+        # Store the pipeline stage config object
+        self._config = pipeline_stage_config
 
         # Name of the type of item
         self._item_type = item_type
@@ -77,18 +79,23 @@ class Artifact(object):
         """
 
         # We'll hash the stage definition to check if it's changed
-        props = {}
-        ignore = ["parent_class"]
-        for prop in dir(pipeline_stage_config):
-            value = getattr(pipeline_stage_config, prop)
-            if not prop.startswith('__') and not inspect.ismethod(value)\
-               and prop not in ignore:
-                props[prop] = value
-
+        ignore = ['parent_class']
+        props = {k: getattr(pipeline_stage_config, k)
+                 for k in dir(pipeline_stage_config)
+                 if not k.startswith('__')
+                 and not inspect.ismethod(getattr(pipeline_stage_config, k))
+                 and k not in ignore}
         h = hashlib.md5()
         stage_json = json.dumps(props, sort_keys=True)
         h.update(str(stage_json).encode('utf-8'))
-        self._definition_hash = h.digest()
+        self._definition_hash = str(h.hexdigest())
+
+    def get_uid(self):
+        """
+        Generate a unique ID for this artifact.
+        """
+        return generate_uid(self._specific_hash, self._dependency_hash,
+                            self._definition_hash)
 
     def meta_to_dict(self):
         """
@@ -113,3 +120,21 @@ class Artifact(object):
                     property=prop)
             else:
                 setattr(self, "_" + prop, d[prop])
+
+def generate_uid(_specific_hash, _dependency_hash, _definition_hash):
+        specific_hash = ""
+        if _specific_hash is not None:
+            specific_hash = _specific_hash
+        dependency_hash = ""
+        if _dependency_hash is not None:
+            dependency_hash = _dependency_hash
+        return _definition_hash + "_" + \
+            specific_hash + "_" + \
+            dependency_hash
+
+class Item(object):
+    def __init__(self, payload, meta={}, tags=[], type=None):
+        self.payload = payload
+        self.meta = meta
+        self.tags = tags
+        self.type = type
