@@ -1,11 +1,14 @@
+from pipetree.stage import LocalFilePipelineStage,\
+    LocalDirectoryPipelineStage, ExecutorPipelineStage,\
+    ParameterPipelineStage
+
 __version__ = '0.1.0'
 
-from pipetree.stage import LocalDirectoryPipelineStage, ExecutorPipelineStage
-
-_STAGES = [
-    LocalDirectoryPipelineStage,
-    ExecutorPipelineStage
-]
-STAGES = {cls.__name__: cls for cls in _STAGES}
+STAGES = {
+    "LocalDirectoryPipelineStage": LocalDirectoryPipelineStage,
+    "LocalFilePipelineStage": LocalFilePipelineStage,
+    "ExecutorPipelineStage": ExecutorPipelineStage,
+    "ParameterPipelineStage": ParameterPipelineStage
+}
 
 from pipetree.pipeline import Pipeline

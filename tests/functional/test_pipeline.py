@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
+import os.path
 import unittest
 from tests import isolated_filesystem
 from collections import OrderedDict
@@ -39,10 +40,16 @@ PIPELINE_CONFIG = """
 class TestPipelineLoading(unittest.TestCase):
     def setUp(self):
         self.dirname = 'foo'
+        self.filename = 'bar'
+        self.data = 'The charming anatomy of vestigial organs'
         self.factory = PipelineFactory()
         self.fs = isolated_filesystem()
         self.fs.__enter__()
         os.makedirs(self.dirname)
+        with open(os.path.join(os.getcwd(),
+                               self.dirname,
+                               self.filename), 'w') as f:
+            f.write(self.data)
 
     def tearDown(self):
         self.fs.__exit__(None, None, None)
@@ -58,6 +65,15 @@ class TestPipelineLoading(unittest.TestCase):
                 'filepath': self.dirname,
                 'read_content': True
             },
+            'StageC': {
+                'type': 'LocalFilePipelineStage',
+                'filepath': os.path.join(self.dirname, self.filename)
+            },
+            'StageD': {
+                'type': 'ParameterPipelineStage',
+                'parameters': {"int_param": 200, "str_param": "str"}
+            },
+
         })
         self.factory.generate_pipeline_from_dict(config)
 
@@ -98,6 +114,19 @@ class TestPipelineLoading(unittest.TestCase):
                 'inputs': 'StageA',
                 'type': 'ExecutorPipelineStage',
                 'execute': 'package.file.function'
+            },
+        })
+        try:
+            self.factory.generate_pipeline_from_dict(config)
+            print('This should have failed, inputs is not an array')
+            self.fail()
+        except InvalidConfigurationFileError:
+            pass
+
+    def test_generate_local_file_no_path(self):
+        config = OrderedDict({
+            'StageA': {
+                'type': 'LocalFilePipelineStage'
             },
         })
         try:

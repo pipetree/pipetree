@@ -61,7 +61,7 @@ class TestArtifact(unittest.TestCase):
         for prop in d:
             value = getattr(art_a, "_" + prop, d)
             self.assertEqual(d[prop], value)
-    
+
     def test_metadata_from_bad_dict(self):
         stage_a = PipelineStageConfig('some_name', {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
         art_a = Artifact(stage_a)
@@ -70,5 +70,13 @@ class TestArtifact(unittest.TestCase):
             self.fail()
         except InvalidArtifactMetadataError:
             pass
-    
-    
+
+    def test_generate_metadata(self):
+        stage_a = PipelineStageConfig(
+            'some_name',
+            {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
+        art_a = Artifact(stage_a)
+        d = art_a.meta_to_dict()
+        for m in art_a._meta_properties:
+            if m not in d:
+                self.fail()

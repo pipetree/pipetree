@@ -25,6 +25,7 @@ import inspect
 import json
 from pipetree.exceptions import InvalidArtifactMetadataError
 
+
 class Artifact(object):
     def __init__(self, pipeline_stage_config, item_type=None):
         # User meta property
@@ -35,11 +36,11 @@ class Artifact(object):
 
         # The specific artifacts that were utilized by the stage that produced
         # this artifact
-        # ex) {"prev_pipeline_stage/prev_pipeline_item_type": [0xAB224560xAB...],
-        #      "prev_pipeline_stage/prev_pipeline_item_type2": [0xAB221020xBF...] }
+        # ex) {"prev_pipeline_stage/prev_pipeline_item_type": [0xAB4560xAB...],
+        #      "prev_pipeline_stage/prev_pipeline_item_type2": [0xAB220xBF...]}
         self._antecedents = {}
 
-        # Combined hash of the specific artifacts that were utilized by the stage
+        # Combined hash of the specific artifacts utilized by the stage
         # that produced this artifact
         self._dependency_hash = None
 
@@ -49,21 +50,25 @@ class Artifact(object):
         # Hash of the pipeline stage definition JSON
         self._definition_hash = None
 
-        # Specific hash, the production of which varies for different artifact types
+        # Specific hash, which varies for different artifact types
         self._specific_hash = None
 
         # Name of the pipeline stage that produced this artifact
         self._pipeline_stage = pipeline_stage_config.name
 
-        # Name of the type of item 
+        # Name of the type of item
         self._item_type = item_type
 
         # Actual artifact payload
-        self._payload = None
+        self.payload = None
 
         # Listing of meta properties for serialization purposes
-        self._meta_properties = ["meta", "tags", "antecedents", "creation_time", "definition_hash", "specific_hash", "dependency_hash", "pipeline_stage", "item_type"]
-        
+        self._meta_properties = [
+            "meta", "tags", "antecedents",
+            "creation_time", "definition_hash",
+            "specific_hash", "dependency_hash",
+            "pipeline_stage", "item_type"]
+
         self._process_stage_definition(pipeline_stage_config)
 
     def _process_stage_definition(self, pipeline_stage_config):
@@ -76,17 +81,19 @@ class Artifact(object):
         ignore = ["parent_class"]
         for prop in dir(pipeline_stage_config):
             value = getattr(pipeline_stage_config, prop)
-            if not prop.startswith('__') and not inspect.ismethod(value) and prop not in ignore:
+            if not prop.startswith('__') and not inspect.ismethod(value)\
+               and prop not in ignore:
                 props[prop] = value
 
         h = hashlib.md5()
         stage_json = json.dumps(props, sort_keys=True)
         h.update(str(stage_json).encode('utf-8'))
         self._definition_hash = h.digest()
-        
+
     def meta_to_dict(self):
         """
-        Convert relevant internal object properties to a dictionary for serialization
+        Convert relevant internal object properties
+        to a dictionary for serialization
         """
         d = {}
         for prop in self._meta_properties:
@@ -101,9 +108,8 @@ class Artifact(object):
         for prop in self._meta_properties:
             # Ensure that every meta property is set within the dictionary
             if prop not in d:
-                stage = "UNKNOWN STAGE"
-                if "pipeline_stage" in d:
-                    stage = d["pipeline_stage"]
-                raise InvalidArtifactMetadataError(stage=stage, property=prop)
+                raise InvalidArtifactMetadataError(
+                    stage=d.get("pipeline_stage", "UNKNOWN STAGE"),
+                    property=prop)
             else:
                 setattr(self, "_" + prop, d[prop])

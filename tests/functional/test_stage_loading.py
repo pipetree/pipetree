@@ -21,8 +21,11 @@
 # SOFTWARE.
 import unittest
 
+import pipetree
+import pipetree.stage
 from pipetree.loaders import PipelineConfigLoader
-from pipetree.exceptions import InvalidConfigurationFileError
+from pipetree.exceptions import InvalidConfigurationFileError,\
+    StageDoesNotExistError
 from pipetree.stage import PipelineStageFactory
 from tests import isolated_filesystem
 
@@ -55,6 +58,12 @@ class TestPipelineStageLoader(unittest.TestCase):
 
     def tearDown(self):
         self.fs.__exit__(None, None, None)
+
+    def test_stage_export(self):
+        for stage in pipetree.STAGES:
+            if not hasattr(pipetree.stage, stage):
+                raise StageDoesNotExistError(stage=stage)
+        pass
 
     def test_load_valid_pipeline_config(self):
         with open(self.filename, 'w') as f:

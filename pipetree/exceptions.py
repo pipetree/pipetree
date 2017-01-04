@@ -49,6 +49,7 @@ class MissingPipelineAttributeError(PipetreeError):
     """
     message = 'No {attribute} attribute found for pipeline stage {stage_name}'
 
+
 class IncorrectPipelineStageNameError(PipetreeError):
     message = 'Pipeline stage type must be one of {types}'
 
@@ -60,8 +61,27 @@ class NonPythonicNameError(PipetreeError):
 class ArtifactSourceDoesNotExistError(PipetreeError):
     message = '{provider} cannot source artifacts from {source}'
 
+
 class InvalidArtifactMetadataError(PipetreeError):
     message = 'Artifact Metadata Invalid for pipeline stage {stage}, property {property}'
+
+
+class ArtifactProviderMissingParameterError(PipetreeError):
+    message = '{provider} instantiated without parameter {parameter}'
+
+
+class InvalidArtifactMetadataError(PipetreeError):
+    message = 'Artifact Metadata Invalid for pipeline stage {stage},'\
+              + 'property {property}'
+
+
+class ArtifactProviderFailedError(PipetreeError):
+    message = 'Artifact Provider {provider} failed to produce an artifact:'\
+              + ' {error}'
+
+
+class StageDoesNotExistError(PipetreeError):
+    message = 'Specified pipeline stage {stage} does not exist'
 
 
 class InvalidConfigurationFileError(PipetreeError):

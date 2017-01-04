@@ -19,7 +19,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from pipetree.storage import LocalFileArtifactProvider
+import inspect
+from pipetree.storage import LocalDirectoryArtifactProvider,\
+    LocalFileArtifactProvider,\
+    ParameterArtifactProvider
 from pipetree.exceptions import InvalidConfigurationFileError
 
 
@@ -42,12 +45,81 @@ class BasePipelineStage(object):
         raise NotImplementedError
 
 
+class ParameterPipelineStage(BasePipelineStage):
+    """A pipeline stage for fixed parameters"""
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        params = self.params_from_config(config)
+        self._artifact_source = ParameterArtifactProvider(
+            stage_config=config,
+            parameters=params)
+
+    def params_from_config(self, config):
+        """ Extract parameters from a config"""
+        exclude = ['type']
+        params = {}
+        for prop in dir(config):
+            value = getattr(config, prop)
+            if not prop.startswith('__') and not inspect.ismethod(value)\
+               and prop not in exclude:
+                params[prop] = value
+        return params
+
+    def validate_prereqs(self, previous_stages):
+        return True
+
+    def _source_artifact(self, artifact_name):
+        pass
+
+    def _yield_artifacts(self):
+        pass
+
+    def _validate_config(self, config):
+        """
+        Raise an exception if the config is invald
+        """
+        return True
+
+
+class LocalFilePipelineStage(BasePipelineStage):
+    """A pipeline stage for sourcing a single file locally"""
+
+    def __init__(self, config):
+        super().__init__(config)
+        self._artifact_source = LocalFileArtifactProvider(
+            path=config.filepath,
+            stage_config=config)
+
+    def validate_prereqs(self, previous_stages):
+        return True
+
+    def _source_artifact(self, artifact_name):
+        pass
+
+    def _yield_artifacts(self):
+        pass
+
+    def _validate_config(self, config):
+        """
+        Raise an exception if the config is invald
+        """
+        if not hasattr(config, 'filepath'):
+            raise InvalidConfigurationFileError(
+                configurable=self.__class__.__name__,
+                reason='expected \'filepath\' entry of type string.')
+        return True
+
+
 class LocalDirectoryPipelineStage(BasePipelineStage):
     """A pipeline stage for sourcing files from a directory"""
 
     def __init__(self, config):
         super().__init__(config)
-        self._artifact_source = LocalFileArtifactProvider(config.filepath)
+        self._artifact_source = LocalDirectoryArtifactProvider(
+            path=config.filepath,
+            stage_config=config)
 
     def validate_prereqs(self, previous_stages):
         return True
