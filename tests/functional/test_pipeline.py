@@ -121,7 +121,8 @@ class TestPipelineLoading(unittest.TestCase):
             'StageB': {
                 'inputs': 'StageA',
                 'type': 'ExecutorPipelineStage',
-                'execute': 'package.file.function'
+                'execute': 'package.file.function',
+                'directory': os.getcwd()                
             },
         })
         try:
@@ -152,7 +153,8 @@ class TestPipelineLoading(unittest.TestCase):
             },
             'StageB': {
                 'type': 'ExecutorPipelineStage',
-                'execute': 'package.file.function'
+                'execute': 'package.file.function',
+                'directory': os.getcwd()                
             },
         })
         try:
@@ -189,7 +191,8 @@ class TestPipelineLoading(unittest.TestCase):
             'StageB': {
                 'inputs': ['BadReference'],
                 'type': 'ExecutorPipelineStage',
-                'execute': 'package.file.function'
+                'execute': 'package.file.function',
+                'directory': os.getcwd()
             },
         })
         try:
@@ -208,7 +211,8 @@ class TestPipelineLoading(unittest.TestCase):
             ('StageB', {
                 'inputs': ['StageA'],
                 'type': 'ExecutorPipelineStage',
-                'execute': 'package.file.function'
+                'execute': 'package.file.function',
+                'directory': os.getcwd()
             }),
         ])
         pipeline = self.factory.generate_pipeline_from_dict(config)

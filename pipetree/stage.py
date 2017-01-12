@@ -26,6 +26,7 @@ from pipetree.storage import LocalDirectoryArtifactProvider,\
     LocalFileArtifactProvider,\
     ParameterArtifactProvider
 from pipetree.exceptions import InvalidConfigurationFileError
+from pipetree.artifact import Artifact
 
 
 class BasePipelineStage(object):
@@ -40,7 +41,7 @@ class BasePipelineStage(object):
     def _source_artifact(self, artifact_name):
         raise NotImplementedError
 
-    def _yield_artifacts(self, input_artifacts=None):
+    def yield_artifacts(self, input_artifacts=None):
         raise NotImplementedError
 
     def _validate_config(self):
@@ -78,8 +79,9 @@ class ParameterPipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def _yield_artifacts(self, input_artifacts=None):
-        pass
+    def yield_artifacts(self, input_artifacts=None):
+        for art in self._artifact_source.yield_artifacts():
+            yield art
 
     def _validate_config(self, config):
         """
@@ -103,7 +105,7 @@ class LocalFilePipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def _yield_artifacts(self, input_artifacts=None):
+    def yield_artifacts(self, input_artifacts=None):
         for art in self._artifact_source.yield_artifacts():
             yield art
 
@@ -152,7 +154,10 @@ class IdentityPipelineStage(BasePipelineStage):
 
     def yield_artifacts(self, input_artifacts):
         for artifact in input_artifacts:
-            yield artifact
+            new_artifact = Artifact(self._config,
+                                    artifact.item)
+            new_artifact._specific_hash = artifact._specific_hash
+            yield new_artifact
 
     def _validate_config(self, config):
         return True
@@ -173,7 +178,7 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def _yield_artifacts(self, *args, **kwargs):
+    def yield_artifacts(self, *args, **kwargs):
         return self._artifact_source.yield_artifacts()
 
     def _validate_config(self, config):
@@ -197,7 +202,13 @@ class ExecutorPipelineStage(BasePipelineStage):
 
     def _load_module(self, config):
         path = os.path.join(*config.execute.split('.')[:-1]) + '.py'
-        print(path)
+
+        if not hasattr(self._config, 'directory'):
+            cur_path, _ = os.path.split(os.path.realpath(__file__))
+            parent_path = os.path.join(*cur_path.split('/')[:-1])
+            path = os.path.join("/" + parent_path, path)
+        else:
+            path = os.path.join(self._config.directory, path)
         spec = importlib.util.spec_from_file_location(
             config.name,
             path)

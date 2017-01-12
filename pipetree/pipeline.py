@@ -19,13 +19,16 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import time
 import asyncio
+import hashlib
 from collections import OrderedDict
 from pipetree.config import PipelineStageConfig
 from pipetree.stage import PipelineStageFactory
 from pipetree.loaders import PipelineConfigLoader
 from pipetree.exceptions import DuplicateStageNameError
 from pipetree.futures import InputFuture
+from pipetree.backend import STAGE_COMPLETE
 
 
 class DependencyChain(object):
@@ -85,52 +88,123 @@ class Pipeline(object):
             chain.add_stage(level, input)
             self._build_chain(input, level+1, chain)
 
+    def _log(self, text):
+        print("Pipeline: %s" % text)
+
+    def _dependency_hash(self, input_artifacts):
+        """
+        Generate an idempotent dependency hash representing the unique
+        set of input artifacts provided.
+
+        We do this by generating unique IDs for all input artifacts,
+        then sorting those IDs and hashing their concatenation
+        """
+        uids = map(lambda x: x.get_uid(), input_artifacts)
+        h = hashlib.md5()
+        for u in uids:
+            h.update(u.encode('utf-8'))
+        return str(h.hexdigest())
+
+    def _ensure_artifact_meta(self, artifact, dependency_hash):
+        """
+        Ensure that an artifact has the required default metadata.
+        This includes:
+        - creation_time
+        - dependency_hash
+        """
+        if artifact._creation_time is None:
+            artifact._creation_time = float(time.time())
+        if artifact._dependency_hash is None:
+            artifact._dependency_hash = dependency_hash
+        return artifact
+
+    def _get_cached_artifacts(self, stage_name, input_artifacts, backend):
+        """
+        Attempts to retrieve cached artifacts for the pipeline run,
+        identified uniquely by its definition and the hash of its
+        input artifacts.
+        """
+        stage = self._stages[stage_name]
+        dependency_hash = self._dependency_hash(input_artifacts)
+        status = backend.pipeline_stage_run_status(
+            stage, dependency_hash)
+        if status == STAGE_COMPLETE:
+            cached_arts = backend.find_pipeline_stage_run_artifacts(
+                stage._config, dependency_hash)
+            self._log("Loaded %d cached artifacts for stage %s" %\
+                      (len(cached_arts), stage_name))
+            loaded_arts = []
+            for art in cached_arts:
+                loaded = backend.load_artifact(art)
+                loaded._loaded_from_cache = True
+                loaded_arts.append(loaded)
+            return loaded_arts
+        else:
+            return None
+
+    def _run_stage(self, stage_name, input_artifacts, executor, backend):
+        """
+        Run a stage once we've acquired the input artifacts
+        """
+        # Check if the stage has already been run with the given
+        # input artifacts and pipeline definition. If so,
+        # return the cached run.
+        cached_arts = self._get_cached_artifacts(stage_name,
+                                                 input_artifacts,
+                                                 backend)
+        if cached_arts is not None:
+            self._log("Found %s cached artifacts for stage %s" % \
+                      (len(cached_arts), stage_name))
+            return cached_arts
+
+        # We need to generate fresh artifacts. 
+        # We'll feed the input artifacts to the executor,
+        # returning generated artifacts
+        # For now we'll ignore this, and just execute the stage here.
+        stage = self._stages[stage_name]
+        result = []
+        dependency_hash = self._dependency_hash(input_artifacts)
+        for art in stage.yield_artifacts(input_artifacts=input_artifacts):
+            self._log("Yielding a fresh artifact for stage %s" % stage_name)
+            art = self._ensure_artifact_meta(art, dependency_hash)
+            backend.save_artifact(art)
+            result.append(art)
+        self._log("Done generating stage %s" % stage_name)
+        backend.log_pipeline_stage_run_complete(stage, dependency_hash)
+        return result
+
     @asyncio.coroutine
-    def generate_stage(self, stage_name, schedule, executor):
+    def generate_stage(self, stage_name, schedule, executor, backend):
+        """
+        Acquire input artifacts for a stage and run it.
+        """
         chain = self._build_chain(stage_name)
 
         # Create an input future for each input to this function
         pre_reqs = chain.get_level(1)
 
-        print("Generating stage %s" % stage_name)
+        self._log("Generating stage %s" % stage_name)
         if pre_reqs is None or len(pre_reqs) == 0:
-            # This stage does not need to make futures based on inputs
-            # just write some result somewhere who knows wtf is going on
-            print("No inputs needed for stage %s" % stage_name)
-            artifacts = []
-            res = self._stages[stage_name]._yield_artifacts()
-            for art in res:
-                print("Yielding an artifact from stage %s" % stage_name)
-                artifacts.append(art)
-            print("Stage Complete: %s" % stage_name)
-            return artifacts
+            # This stage does not require any input artifacts
+            self._log("No inputs needed for stage %s" % stage_name)
+            return self._run_stage(stage_name, [], executor, backend)
         else:
-            # This is when we do need to schedule a future with the arbiter
-            # Schedule somethign to be written when input_future resolves
+            # Schedule an input future with the arbiter
             input_future = InputFuture(stage_name)
             for pre_req in pre_reqs:
                 input_future.add_input_source(pre_req)
             schedule(input_future)
 
-            # Wait until the associated futures have been setup
+            # Wait until the associated futures resolve
             artifactChunks = yield from input_future.await_artifacts()
-            artifacts = []
+            input_artifacts = []
             for artifactChunk in artifactChunks:
-                artifacts += artifactChunk
+                input_artifacts += artifactChunk
 
-            print("All (%d) inputs acquired for stage %s" %
-                  (len(artifacts), stage_name))
+            self._log("All (%d) inputs acquired for stage %s" %
+                  (len(input_artifacts), stage_name))
 
-            # Now feed their result to the executor,
-            # returning generated artifacts
-            # For now we'll ignore this, and just execute the stage.
-            found_stage = self._stages[stage_name]
-            result = []
-            for art in found_stage.yield_artifacts(input_artifacts=artifacts):
-                print("Yielded an artifact after getting input artifacts")
-                result.append(art)
-            print("Done generating stage %s" % stage_name)
-            return result
+            return self._run_stage(stage_name, input_artifacts, executor, backend)
 
     @property
     def stages(self):

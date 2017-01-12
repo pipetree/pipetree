@@ -26,11 +26,9 @@ import asyncio
 import os.path
 from tests import isolated_filesystem
 from collections import OrderedDict
-
 from pipetree.artifact import Artifact
 from pipetree.config import PipelineStageConfig
 from pipetree.exceptions import *
-
 from pipetree.arbiter import LocalArbiter
 
 
@@ -48,6 +46,9 @@ class TestLocalArbiter(unittest.TestCase):
         with open(os.path.join(".", self.config_filename), 'w') as f:
             json.dump(self.generate_pipeline_config(), f)
 
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+            
         pass
 
     def tearDown(self):
@@ -65,10 +66,53 @@ class TestLocalArbiter(unittest.TestCase):
             })]
         )
 
-
-    def test_basic_fucntionality(self):
+    def test_run_pipeline(self):
         arbiter = LocalArbiter(os.path.join(".", self.config_filename))
-        arbiter.run_event_loop(close_after=5.0)
+        try:
+            arbiter.run_event_loop(close_after=3.0)
+        except RuntimeError:
+            # Event loop is always closed
+            print("RTE")
+            pass
         final_artifacts = arbiter.await_run_complete()
-        print(final_artifacts[0].payload)
-        pass
+        print(final_artifacts[0].item.payload)
+        self.assertEqual(len(final_artifacts), 1)
+        self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
+
+    def test_pipeline_caching(self):
+        arbiter = LocalArbiter(os.path.join(".", self.config_filename))
+        try:        
+            arbiter.run_event_loop(close_after=3.0)
+        except RuntimeError:
+            # Event loop is always closed
+            pass
+        
+        final_artifacts = arbiter.await_run_complete()
+        print(final_artifacts[0].item.payload)
+        print("FINAL ARTIFACTS")
+        for artifact in final_artifacts:
+            print(artifact.item.payload)
+        self.assertEqual(len(final_artifacts), 1)
+        self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
+
+        print("")
+        print("")
+        print("")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        arbiter = LocalArbiter(os.path.join(".", self.config_filename),
+                               loop)
+        arbiter.reset()
+        try:                
+            arbiter.run_event_loop(close_after=3.0)
+        except RuntimeError:
+            # Event loop is always closed
+            pass
+            
+        final_artifacts = arbiter.await_run_complete()
+        print("FINAL ARTIFACTS")
+        for artifact in final_artifacts:
+            print(artifact.item.payload)
+        print(final_artifacts)
+        self.assertEqual(len(final_artifacts), 1)
+        self.assertEqual(final_artifacts[0]._loaded_from_cache, True)

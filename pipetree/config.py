@@ -19,6 +19,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import hashlib
+import inspect
+import json
 from pipetree import STAGES
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import IncorrectPipelineStageNameError,\
@@ -46,3 +49,20 @@ class PipelineStageConfig(object):
             raise IncorrectPipelineStageNameError(
                 types=list(STAGES.keys()))
         self.parent_class = STAGES[self.type]
+        
+    def hash(self):
+        """
+        Hash a pipeline stage in an idempotent way
+        """
+
+        ignore = ['parent_class']
+        props = {k: getattr(self, k)
+                 for k in dir(self)
+                 if not k.startswith('__')
+                 and not inspect.ismethod(getattr(self, k))
+                 and k not in ignore}
+        h = hashlib.md5()
+        stage_json = json.dumps(props, sort_keys=True)
+        h.update(str(stage_json).encode('utf-8'))
+        return str(h.hexdigest())
+

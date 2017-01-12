@@ -25,9 +25,9 @@ import unittest
 from tests import isolated_filesystem
 
 from pipetree.exceptions import ArtifactMissingPayloadError
-from pipetree.backend import LocalArtifactBackend
+from pipetree.backend import LocalArtifactBackend, STAGE_COMPLETE, STAGE_DOES_NOT_EXIST, STAGE_IN_PROGRESS
 from pipetree.config import PipelineStageConfig
-from pipetree.artifact import Artifact
+from pipetree.artifact import Artifact, Item
 
 
 class TestLocalArtifactBackend(unittest.TestCase):
@@ -42,7 +42,6 @@ class TestLocalArtifactBackend(unittest.TestCase):
         self.stage_config = PipelineStageConfig("test_stage_name", {
             "type": "ParameterPipelineStage"
         })
-
 
         self.stage_config = PipelineStageConfig("test_stage_name", {
             "type": "ParameterPipelineStage"
@@ -73,7 +72,7 @@ class TestLocalArtifactBackend(unittest.TestCase):
     def test_save_artifact(self):
         backend = LocalArtifactBackend(config={"path": "./test_storage/"})
         artifact = Artifact(self.stage_config)
-        artifact.payload="SHRIM"
+        artifact.item = Item(payload="SHRIM")
         backend.save_artifact(artifact)
         pass
 
@@ -81,17 +80,17 @@ class TestLocalArtifactBackend(unittest.TestCase):
         backend = LocalArtifactBackend(config={"path": "./test_storage/"})
         artifact = Artifact(self.stage_config)
         payload = "SHRIM"
-        artifact.payload = payload
+        artifact.item = Item(payload="SHRIM")
         backend.save_artifact(artifact)
 
         loaded_artifact = backend.load_artifact(artifact)
-        self.assertEqual(loaded_artifact.payload, artifact.payload)
+        self.assertEqual(loaded_artifact.item.payload, artifact.item.payload)
 
     def test_find_artifact(self):
         backend = LocalArtifactBackend(config={"path": "./test_storage/"})
         artifact = Artifact(self.stage_config)
         payload = "SHRIM"
-        artifact.payload = payload
+        artifact.item = Item(payload="SHRIM")
         backend.save_artifact(artifact)
 
         loaded_artifact = backend._find_cached_artifact(artifact)
@@ -100,7 +99,8 @@ class TestLocalArtifactBackend(unittest.TestCase):
         self.assertNotEqual(None, loaded_artifact)
 
         # Ensure that the artifact doesn't have a payload
-        self.assertEqual(None, loaded_artifact.payload)
+        self.assertNotEqual(None, loaded_artifact.item)
+        self.assertEqual(None, loaded_artifact.item.payload)
 
         # Ensure that meta properties are correctly set on artifact
         self.assertEqual(loaded_artifact._specific_hash,
@@ -111,15 +111,65 @@ class TestLocalArtifactBackend(unittest.TestCase):
                          artifact._definition_hash)
         self.assertEqual(loaded_artifact._pipeline_stage,
                          artifact._pipeline_stage)
-        self.assertEqual(loaded_artifact._item_type,
-                         artifact._item_type)        
+        self.assertEqual(loaded_artifact.item.type,
+                         artifact.item.type)
 
     def test_user_meta(self):
         backend = LocalArtifactBackend(config={"path": "./test_storage/"})
         artifact = Artifact(self.stage_config)
         payload = "SHRIM"
-        artifact.payload = payload
+        artifact.item = Item(payload=payload)
         backend.save_artifact(artifact)
 
         loaded_artifact = backend.load_artifact(artifact)
-        self.assertEqual(loaded_artifact.payload, payload)
+        self.assertEqual(loaded_artifact.item.payload, payload)
+
+    def test_pipeline_stage_run_meta(self):
+        backend = LocalArtifactBackend(config={"path": "./test_storage/"})
+        artifact = Artifact(self.stage_config)
+        payload = "SHRIM"
+        artifact.item = Item(payload=payload)
+        backend.save_artifact(artifact)
+
+        backend.log_pipeline_stage_run_complete(
+            self.stage_config,
+            artifact._dependency_hash)
+        
+        arts = backend.find_pipeline_stage_run_artifacts(
+            self.stage_config,
+            artifact._dependency_hash)
+        self.assertEqual(len(arts), 1)
+        self.assertEqual(arts[0].get_uid(), artifact.get_uid())
+
+    def test_pipeline_stage_status(self):        
+        backend = LocalArtifactBackend(config={"path": "./test_storage/"})
+        artifact = Artifact(self.stage_config)
+        payload = "SHRIM"
+        artifact.item = Item(payload=payload)
+
+        status = backend.pipeline_stage_run_status(
+            self.stage_config,
+            artifact._dependency_hash)
+        self.assertEqual(status, STAGE_DOES_NOT_EXIST)
+
+        backend.save_artifact(artifact)
+
+        status = backend.pipeline_stage_run_status(
+            self.stage_config,
+            artifact._dependency_hash)
+        self.assertEqual(status, STAGE_IN_PROGRESS)
+
+
+        backend.log_pipeline_stage_run_complete(
+            self.stage_config,
+            artifact._dependency_hash)
+        status = backend.pipeline_stage_run_status(
+            self.stage_config,
+            artifact._dependency_hash)
+        self.assertEqual(status, STAGE_COMPLETE)
+
+        meta = backend._get_pipeline_stage_run_meta(
+            self.stage_config,
+            artifact._dependency_hash)
+
+        self.assertEqual(len(meta['artifacts']), 1)

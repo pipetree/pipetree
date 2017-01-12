@@ -57,21 +57,28 @@ class TestArtifact(unittest.TestCase):
             {"A": 1, "B": 2, "type": "ExecutorPipelineStage"})
         art_a = Artifact(stage_a)
         d = {
-            "meta": {"loss": 0.2},
-            "tags": ["my_pipeline_run"],
             "antecedents": {},
             "creation_time": 124566722.3,
             "definition_hash": "dac9630aec642a428cd73f4be0a03569",
             "specific_hash": "bc1687bbb3b97214d46b7c30ab307cc1",
             "dependency_hash": "ecad5fc98abf66565e009155f5e57dda",
             "pipeline_stage": "some_stage",
-            "item_type": "my_item_type"
+            "item": {
+                "meta": {"loss": 0.2},
+                "tags": ["my_pipeline_run"],
+                "type": "my_item_type"
+            }
         }
         art_a.meta_from_dict(d)
 
         for prop in d:
-            value = getattr(art_a, "_" + prop, d)
-            self.assertEqual(d[prop], value)
+            if prop == "item":
+                for iprop in d['item']:
+                    value = getattr(art_a.item, iprop)
+                    self.assertEqual(d['item'][iprop], value)
+            else:
+                value = getattr(art_a, "_" + prop)
+                self.assertEqual(d[prop], value)
 
     def test_metadata_from_bad_dict(self):
         stage_a = PipelineStageConfig(

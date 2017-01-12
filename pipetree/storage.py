@@ -115,7 +115,7 @@ class LocalFileArtifactProvider(ArtifactProvider):
             content = f.read()
 
         art = Artifact(self._stage_config)
-        art.payload = content
+        art.item.payload = content
         return art
 
 
@@ -154,6 +154,6 @@ class LocalDirectoryArtifactProvider(ArtifactProvider):
         if self.read_content:
             with open(artifact_path, 'rb') as f:
                 art = Artifact(self._stage_config)
-                art.payload = f.read()
+                art.item.payload = f.read()
                 return art
         return artifact_path

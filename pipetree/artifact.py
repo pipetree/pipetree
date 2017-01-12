@@ -24,13 +24,13 @@ import inspect
 import json
 from pipetree.exceptions import InvalidArtifactMetadataError
 
-class Artifact(object):
-    def __init__(self, pipeline_stage_config, item_type=None):
-        # User meta property
-        self._meta = {}
 
-        # Artifact tags
-        self._tags = []
+class Artifact(object):
+    def __init__(self, pipeline_stage_config, item=None):
+        # Item containing user meta, payload, and tags.
+        # Item may be none, in which case the artifact is not yet
+        # fully loaded, or has not yet been generated.
+        self.item = item or Item(None)
 
         # The specific artifacts that were utilized by the stage that produced
         # this artifact
@@ -58,18 +58,19 @@ class Artifact(object):
         # Store the pipeline stage config object
         self._config = pipeline_stage_config
 
-        # Name of the type of item
-        self._item_type = item_type
-
-        # Actual artifact payload
-        self.payload = None
-
+        # Set when an artifact is loaded from cache rather than generated freshly
+        self._loaded_from_cache = False
+        
         # Listing of meta properties for serialization purposes
         self._meta_properties = [
-            "meta", "tags", "antecedents",
-            "creation_time", "definition_hash",
+            "antecedents", "creation_time", "definition_hash",
             "specific_hash", "dependency_hash",
-            "pipeline_stage", "item_type"]
+            "pipeline_stage"]
+
+        # Listing of item properties for serialization purposes
+        self._item_properties = [
+            "meta", "tags", "type"
+        ]
 
         self._process_stage_definition(pipeline_stage_config)
 
@@ -77,7 +78,8 @@ class Artifact(object):
         """
         Populate relevant artifact fields given stage definition dict
         """
-
+        self._definition_hash = pipeline_stage_config.hash()
+        
         # We'll hash the stage definition to check if it's changed
         ignore = ['parent_class']
         props = {k: getattr(pipeline_stage_config, k)
@@ -106,6 +108,14 @@ class Artifact(object):
         for prop in self._meta_properties:
             value = getattr(self, "_" + prop)
             d[prop] = value
+        d['item'] = {}
+
+        for prop in self._item_properties:
+            if self.item is None:
+                d['item'][prop] = None
+            elif prop is not 'payload':
+                value = getattr(self.item, prop)
+                d['item'][prop] = value
         return d
 
     def meta_from_dict(self, d):
@@ -120,6 +130,20 @@ class Artifact(object):
                     property=prop)
             else:
                 setattr(self, "_" + prop, d[prop])
+
+        if 'item' not in d:
+            return
+
+        self.item = Item(None)
+        for prop in self._item_properties:
+            # Ensure that every meta property is set within the dictionary
+            if prop not in d['item'] and prop is not 'payload':
+                raise InvalidArtifactMetadataError(
+                    stage=d.get("pipeline_stage", "UNKNOWN STAGE"),
+                    property="item." + prop)
+            else:
+                setattr(self.item, prop, d['item'][prop])
+
 
 def generate_uid(_specific_hash, _dependency_hash, _definition_hash):
         specific_hash = ""

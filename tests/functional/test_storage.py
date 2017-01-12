@@ -132,7 +132,7 @@ class TestLocalFileArtifactProvider(unittest.TestCase):
             stage_config=self.stage_config,
             read_content=True)
         art = provider._yield_artifact()
-        self.assertEqual(art.payload.decode('utf-8'),
+        self.assertEqual(art.item.payload.decode('utf-8'),
                          self.filedatas[0])
 
 
@@ -179,7 +179,7 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
                                                   stage_config=self.stage_config,
                                                   read_content=True)
         art = provider._yield_artifact(self.filename[0])
-        self.assertEqual(art.payload.decode('utf-8'),
+        self.assertEqual(art.item.payload.decode('utf-8'),
                          self.filedatas[0])
 
     def test_load_file_names(self):
@@ -197,5 +197,5 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
                                                   read_content=True)
         for art, data in zip(provider.yield_artifacts(),
                              self.filedatas):
-            art_data = art.payload
+            art_data = art.item.payload
             self.assertEqual(art_data.decode('utf-8'), data)

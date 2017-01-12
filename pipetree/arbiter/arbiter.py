@@ -26,12 +26,16 @@ import threading
 import time
 from pipetree.arbiter.executor import ExecutorTask, LocalCPUExecutor
 from pipetree.pipeline import PipelineFactory
+from pipetree.backend import LocalArtifactBackend
 from concurrent.futures import CancelledError
 
 
 class ArbiterBase(object):
-    def __init__(self, filepath):
-        self._loop = asyncio.get_event_loop()
+    def __init__(self, filepath, loop=None):
+        if loop is not None:
+            self._loop = loop
+        else:
+            self._loop = asyncio.get_event_loop()
         self._pipeline = PipelineFactory().generate_pipeline_from_file(
             filepath)
         self._queue = asyncio.Queue(loop=self._loop)
@@ -40,6 +44,7 @@ class ArbiterBase(object):
         self._final_artifacts = []
         self._run_complete = False
         self._lock = threading.Lock()
+        self._artifact_backend = None
 
     def await_run_complete(self):
         while True:
@@ -49,16 +54,28 @@ class ArbiterBase(object):
             time.sleep(0.25)
         return self._final_artifacts
 
+    def reset(self):
+        """
+        Reset accumulated internal state
+        """
+        with self._lock:
+            self._final_artifacts = []
+            self._run_complete = False
+
     @asyncio.coroutine
     def _evaluate_pipeline(self):
         for name in self._pipeline.endpoints:
-            print("Evaluating pipeline endpoints:")
-            print(self._pipeline.endpoints)
+            self._log("Evaluating pipeline endpoints: %s" %\
+                      (str(self._pipeline.endpoints)))
             x = yield from self._pipeline.generate_stage(
                 name,
                 self.enqueue,
-                self._default_executor)
+                self._default_executor,
+                self._artifact_backend
+            )
             with self._lock:
+                self._log("Stage %s complete. Appending final artifacts"
+                          % name)
                 self._final_artifacts += x
         with self._lock:
             self._run_complete = True
@@ -71,10 +88,14 @@ class ArbiterBase(object):
 
 
 class LocalArbiter(ArbiterBase):
-    def __init__(self, filepath):
-        super().__init__(filepath)
+    def __init__(self, filepath, loop=None):
+        super().__init__(filepath, loop)
         self._local_cpu_executor = LocalCPUExecutor()
         self._default_executor = self._local_cpu_executor
+        self._artifact_backend = LocalArtifactBackend()
+
+    def _log(self, text):
+        print("LocalArbiter: %s" % text)
 
     @asyncio.coroutine
     def _resolve_future(self, input_future):
@@ -92,7 +113,8 @@ class LocalArbiter(ArbiterBase):
                 self._pipeline.generate_stage(
                     input_stage,
                     self.enqueue,
-                    self._local_cpu_executor
+                    self._local_cpu_executor,
+                    self._artifact_backend
                 )))
         input_future.set_all_associated_futures_created()
 
@@ -100,10 +122,10 @@ class LocalArbiter(ArbiterBase):
     def _listen_to_queue(self):
         try:
             while True:
-                print("Listening on queue")
+                self._log("Listening on queue")
                 # Extract future from queue
                 future = yield from self._queue.get()
-                print('Read: %s' % future._input_sources)
+                self._log('Read: %s' % future._input_sources)
                 # Create an async job to complete this future,
                 # which on completion will set the result of this input future
                 asyncio.ensure_future(self._resolve_future(future))
@@ -120,7 +142,7 @@ class LocalArbiter(ArbiterBase):
             return
         yield from asyncio.sleep(num_seconds)
         self.shutdown()
-        self._loop.close()
+        raise CancelledError
 
     def shutdown(self):
         for task in asyncio.Task.all_tasks():
@@ -138,7 +160,7 @@ class LocalArbiter(ArbiterBase):
                 self._listen_to_queue()
             ]))
         except CancelledError:
-            click.echo('\nKeyboard Interrupt: closing event loop.')
+            click.echo('\nCancelledError raised: closing event loop.')
         finally:
             self._loop.close()
 
