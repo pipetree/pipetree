@@ -102,19 +102,15 @@ class ExecutorServer(object):
         return result
 
     async def _listen_to_queue(self):
-        try:
-            while True:
-                self._log("Listening on queue")
-                job_id, job = await self._queue.get()
-                self._log('Read: %s' % job)
-                result_artifacts = await self._run_job(job)
-                with self._lock:
-                    self._jobs[job_id] = {"status": "complete",
-                                          "artifacts": result_artifacts,
-                                          "job": job}
-        except RuntimeError:
-            self._log("Runtime error for some reason")
-            pass
+        while True:
+            self._log("Listening on queue")
+            job_id, job = await self._queue.get()
+            self._log('Read: %s' % job)
+            result_artifacts = await self._run_job(job)
+            with self._lock:
+                self._jobs[job_id] = {"status": "complete",
+                                      "artifacts": result_artifacts,
+                                      "job": job}
 
     def shutdown(self):
         for task in asyncio.Task.all_tasks():

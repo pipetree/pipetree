@@ -19,7 +19,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import click
 import signal
 import asyncio
 import threading
@@ -47,6 +46,10 @@ class ArbiterBase(object):
         self._artifact_backend = None
 
     def await_run_complete(self):
+        """
+        Wait for final artifacts to be produced.
+        Useful for testing purposes.
+        """
         while True:
             with self._lock:
                 if self._run_complete is True:
@@ -63,8 +66,12 @@ class ArbiterBase(object):
             self._run_complete = False
 
     async def _evaluate_pipeline(self):
+        """
+        Beginning at pipeline endpoints, create input futures
+        from the bottom up.
+        """
         for name in self._pipeline.endpoints:
-            self._log("Evaluating pipeline endpoints: %s" %\
+            self._log("Evaluating pipeline endpoints: %s" %
                       (str(self._pipeline.endpoints)))
             x = await self._pipeline.generate_stage(
                 name,
@@ -96,36 +103,35 @@ class LocalArbiter(ArbiterBase):
     def _log(self, text):
         print("LocalArbiter: %s" % text)
 
-    async def _resolve_future(self, input_future):
+    async def _resolve_future_inputs(self, future):
         """
-        Resolve future and then call set_result
-
-        We do this by generating stages for all input sources,
-        Then waiting for their completion.
-        Once we have the artifacts from their completion, we can
-
-        call set_result on the future.
+        Ensure that all input futures to this future will be resolved.
+        Once all tasks have been created, we call
+        set_all_associated_futures_created so that we can block on
+        this future as necessary.
         """
-        for input_stage in input_future._input_sources:
-            input_future.add_associated_future(asyncio.ensure_future(
+        for input_stage in future._input_sources:
+            future.add_associated_future(asyncio.ensure_future(
                 self._pipeline.generate_stage(
                     input_stage,
                     self.enqueue,
                     self._local_cpu_executor,
                     self._artifact_backend
                 )))
-        input_future.set_all_associated_futures_created()
+        future.set_all_associated_futures_created()
 
     async def _listen_to_queue(self):
         try:
             while True:
                 self._log("Listening on queue")
+
                 # Extract future from queue
                 future = await self._queue.get()
                 self._log('Read: %s' % future._input_sources)
-                # Create an async job to complete this future,
-                # which on completion will set the result of this input future
-                asyncio.ensure_future(self._resolve_future(future))
+
+                # Create an async job to generate all input futures
+                # associated with this future, and to ensure they resolve.
+                asyncio.ensure_future(self._resolve_future_inputs(future))
         except RuntimeError:
             pass
 
