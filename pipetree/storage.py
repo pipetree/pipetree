@@ -111,7 +111,7 @@ class LocalFileArtifactProvider(ArtifactProvider):
     def _yield_artifact(self):
         artifact_path = os.path.join(os.getcwd(), self._path)
         content = ""
-        with open(artifact_path, 'rb') as f:
+        with open(artifact_path, 'r') as f:
             content = f.read()
 
         art = Artifact(self._stage_config)

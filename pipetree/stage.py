@@ -229,7 +229,7 @@ class ExecutorPipelineStage(BasePipelineStage):
         pass
 
     def yield_artifacts(self, input_artifacts=None):
-        yield from self._fn()
+        yield self._fn()
 
     def _validate_config(self, config):
         if not hasattr(config, 'inputs'):

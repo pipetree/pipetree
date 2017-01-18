@@ -132,7 +132,7 @@ class TestLocalFileArtifactProvider(unittest.TestCase):
             stage_config=self.stage_config,
             read_content=True)
         art = provider._yield_artifact()
-        self.assertEqual(art.item.payload.decode('utf-8'),
+        self.assertEqual(art.item.payload,
                          self.filedatas[0])
 
 

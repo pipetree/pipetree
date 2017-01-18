@@ -188,7 +188,7 @@ class LocalArtifactBackend(ArtifactBackend):
             with open(os.path.join(self.path,
                                    self._relative_artifact_path(artifact)),
                       'w') as f:
-                f.write(str(artifact.item.payload))
+                f.write(artifact.item.payload)
 
         self._write_artifact_meta(artifact)
         self._record_pipeline_stage_run_artifact(artifact)

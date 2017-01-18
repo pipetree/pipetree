@@ -49,7 +49,7 @@ class PipelineStageConfig(object):
             raise IncorrectPipelineStageNameError(
                 types=list(STAGES.keys()))
         self.parent_class = STAGES[self.type]
-        
+
     def hash(self):
         """
         Hash a pipeline stage in an idempotent way
@@ -65,4 +65,3 @@ class PipelineStageConfig(object):
         stage_json = json.dumps(props, sort_keys=True)
         h.update(str(stage_json).encode('utf-8'))
         return str(h.hexdigest())
-

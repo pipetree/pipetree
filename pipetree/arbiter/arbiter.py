@@ -24,7 +24,7 @@ import signal
 import asyncio
 import threading
 import time
-from pipetree.arbiter.executor import ExecutorTask, LocalCPUExecutor
+from pipetree.executor.local import LocalCPUExecutor
 from pipetree.pipeline import PipelineFactory
 from pipetree.backend import LocalArtifactBackend
 from concurrent.futures import CancelledError
@@ -62,12 +62,11 @@ class ArbiterBase(object):
             self._final_artifacts = []
             self._run_complete = False
 
-    @asyncio.coroutine
-    def _evaluate_pipeline(self):
+    async def _evaluate_pipeline(self):
         for name in self._pipeline.endpoints:
             self._log("Evaluating pipeline endpoints: %s" %\
                       (str(self._pipeline.endpoints)))
-            x = yield from self._pipeline.generate_stage(
+            x = await self._pipeline.generate_stage(
                 name,
                 self.enqueue,
                 self._default_executor,
@@ -90,15 +89,14 @@ class ArbiterBase(object):
 class LocalArbiter(ArbiterBase):
     def __init__(self, filepath, loop=None):
         super().__init__(filepath, loop)
-        self._local_cpu_executor = LocalCPUExecutor()
+        self._local_cpu_executor = LocalCPUExecutor(self._loop)
         self._default_executor = self._local_cpu_executor
         self._artifact_backend = LocalArtifactBackend()
 
     def _log(self, text):
         print("LocalArbiter: %s" % text)
 
-    @asyncio.coroutine
-    def _resolve_future(self, input_future):
+    async def _resolve_future(self, input_future):
         """
         Resolve future and then call set_result
 
@@ -118,13 +116,12 @@ class LocalArbiter(ArbiterBase):
                 )))
         input_future.set_all_associated_futures_created()
 
-    @asyncio.coroutine
-    def _listen_to_queue(self):
+    async def _listen_to_queue(self):
         try:
             while True:
                 self._log("Listening on queue")
                 # Extract future from queue
-                future = yield from self._queue.get()
+                future = await self._queue.get()
                 self._log('Read: %s' % future._input_sources)
                 # Create an async job to complete this future,
                 # which on completion will set the result of this input future
@@ -132,15 +129,13 @@ class LocalArbiter(ArbiterBase):
         except RuntimeError:
             pass
 
-    @asyncio.coroutine
-    def _main(self):
-        yield from self._evaluate_pipeline()
+    async def _main(self):
+        await self._evaluate_pipeline()
 
-    @asyncio.coroutine
-    def _close_after(self, num_seconds):
+    async def _close_after(self, num_seconds):
         if num_seconds is None:
             return
-        yield from asyncio.sleep(num_seconds)
+        await asyncio.sleep(num_seconds)
         self.shutdown()
         raise CancelledError
 
@@ -160,7 +155,7 @@ class LocalArbiter(ArbiterBase):
                 self._listen_to_queue()
             ]))
         except CancelledError:
-            click.echo('\nCancelledError raised: closing event loop.')
+            self._log('CancelledError raised: closing event loop.')
         finally:
             self._loop.close()
 

@@ -66,20 +66,19 @@ class InputFuture(object):
         with self._associated_futures_lock:
             return copy.copy(self._associated_futures)
 
-    @asyncio.coroutine
-    def await_artifacts(self):
+    async def await_artifacts(self):
         """
         Await the production of artifacts from all associated futures
         """
         while True:
-            yield from asyncio.sleep(1)
+            await asyncio.sleep(1)
             with self._lock:
                 if self._futures_created is True:
                     break
 
         results = []
         for future in self._associated_futures:
-            x = yield from future
+            x = await future
             results.append(x)
         return results
 

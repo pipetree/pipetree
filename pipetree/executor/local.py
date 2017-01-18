@@ -18,27 +18,24 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-import unittest
-from pipetree.config import PipelineStageConfig
-from pipetree.stage import PipelineStageFactory
+from pipetree.executor import Executor
 
+class LocalCPUExecutor(Executor):
+    def __init__(self, loop):
+        super().__init__(loop)
 
-class TestExecutorPipelineStage(unittest.TestCase):
-    def setUp(self):
-        self.data = {
-            "inputs": [],
-            "execute": "tests.functional.module.executor_function.function",
-            "type": "ExecutorPipelineStage"
-        }
-        self.config = PipelineStageConfig('WriteBytes', self.data)
-        self.factory = PipelineStageFactory()
+    def _log(self, message):
+        print("LocalExecutor: %s" % message)
 
-    def test_init_executor(self):
-        stage = self.factory.create_pipeline_stage(self.config)
-        res = []
-
-        for x in stage.yield_artifacts():
-            res = list(x)
-
-        self.assertEqual(res, ['foo', 'bar', 'baz'])
+    async def _process_queue(self):
+        try:
+            while True:
+                task = await self._queue.get()
+                self._log('Acquired Task: %s' % task)
+                self._log('\tInputs: %s' % task._input_artifacts)
+                for artifact in task._stage.yield_artifacts(
+                        input_artifacts=task._input_artifacts):
+                    task.enqueue_artifact(artifact)
+                task.all_artifacts_generated()
+        except RuntimeError:
+            pass

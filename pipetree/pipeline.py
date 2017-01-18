@@ -120,7 +120,7 @@ class Pipeline(object):
 
     def _get_cached_artifacts(self, stage_name, input_artifacts, backend):
         """
-        Attempts to retrieve cached artifacts for the pipeline run,
+        Attempts to retrieve cached artifacts for the stage run,
         identified uniquely by its definition and the hash of its
         input artifacts.
         """
@@ -142,7 +142,8 @@ class Pipeline(object):
         else:
             return None
 
-    def _run_stage(self, stage_name, input_artifacts, executor, backend):
+    async def _run_stage(self, stage_name, input_artifacts,
+                         executor, backend):
         """
         Run a stage once we've acquired the input artifacts
         """
@@ -153,28 +154,34 @@ class Pipeline(object):
                                                  input_artifacts,
                                                  backend)
         if cached_arts is not None:
-            self._log("Found %s cached artifacts for stage %s" % \
+            self._log("Found %d cached artifacts for stage %s" % \
                       (len(cached_arts), stage_name))
             return cached_arts
 
-        # We need to generate fresh artifacts. 
+        # We need to generate fresh artifacts.
         # We'll feed the input artifacts to the executor,
         # returning generated artifacts
-        # For now we'll ignore this, and just execute the stage here.
         stage = self._stages[stage_name]
         result = []
         dependency_hash = self._dependency_hash(input_artifacts)
-        for art in stage.yield_artifacts(input_artifacts=input_artifacts):
+
+        task = executor.create_task(self._stages[stage_name],
+                                    input_artifacts)
+        artifacts = await task.generate_artifacts()
+
+        for art in artifacts:
             self._log("Yielding a fresh artifact for stage %s" % stage_name)
+            self._log("\tPayload sample: %s " % str(art.item.payload)[0:50])
             art = self._ensure_artifact_meta(art, dependency_hash)
             backend.save_artifact(art)
             result.append(art)
+
         self._log("Done generating stage %s" % stage_name)
         backend.log_pipeline_stage_run_complete(stage, dependency_hash)
         return result
 
-    @asyncio.coroutine
-    def generate_stage(self, stage_name, schedule, executor, backend):
+    async def generate_stage(self, stage_name, schedule,
+                             executor, backend):
         """
         Acquire input artifacts for a stage and run it.
         """
@@ -187,7 +194,8 @@ class Pipeline(object):
         if pre_reqs is None or len(pre_reqs) == 0:
             # This stage does not require any input artifacts
             self._log("No inputs needed for stage %s" % stage_name)
-            return self._run_stage(stage_name, [], executor, backend)
+            res = await self._run_stage(stage_name, [], executor, backend)
+            return res
         else:
             # Schedule an input future with the arbiter
             input_future = InputFuture(stage_name)
@@ -196,7 +204,7 @@ class Pipeline(object):
             schedule(input_future)
 
             # Wait until the associated futures resolve
-            artifactChunks = yield from input_future.await_artifacts()
+            artifactChunks = await input_future.await_artifacts()
             input_artifacts = []
             for artifactChunk in artifactChunks:
                 input_artifacts += artifactChunk
@@ -204,7 +212,12 @@ class Pipeline(object):
             self._log("All (%d) inputs acquired for stage %s" %
                   (len(input_artifacts), stage_name))
 
-            return self._run_stage(stage_name, input_artifacts, executor, backend)
+            # Run the stage using collected input artifacts
+            run = await self._run_stage(stage_name,
+                                        input_artifacts,
+                                        executor,
+                                        backend)
+            return run
 
     @property
     def stages(self):

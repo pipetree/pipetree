@@ -18,21 +18,21 @@
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 import unittest
-import json
 import asyncio
-import os.path
-from tests import isolated_filesystem
+import json
+import os
 from collections import OrderedDict
-from pipetree.artifact import Artifact
-from pipetree.config import PipelineStageConfig
-from pipetree.exceptions import *
+from pipetree.executor.server import ExecutorServer
+from pipetree.executor import LocalCPUExecutor
+from pipetree.backend import LocalArtifactBackend
+from tests import isolated_filesystem
 from pipetree.arbiter import LocalArbiter
+from pipetree.stage import PipelineStageFactory
+from pipetree.config import PipelineStageConfig
 
 
-class TestLocalArbiter(unittest.TestCase):
+class TestServer(unittest.TestCase):
     def setUp(self):
         self.config_filename = 'pipetree.json'
         self.testfile_name = 'testfile'
@@ -41,18 +41,16 @@ class TestLocalArbiter(unittest.TestCase):
         self.fs.__enter__()
 
         with open(os.path.join(".", self.testfile_name), 'w') as f:
-            json.dump(self.testfile_contents, f)
+            f.write(self.testfile_contents)
 
         with open(os.path.join(".", self.config_filename), 'w') as f:
             json.dump(self.generate_pipeline_config(), f)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-            
-        pass
 
     def tearDown(self):
-        self.fs.__exit__(None, None, None)
+        pass
 
     def generate_pipeline_config(self):
         return OrderedDict([(
@@ -66,44 +64,29 @@ class TestLocalArbiter(unittest.TestCase):
             })]
         )
 
-    def test_run_pipeline(self):
-        arbiter = LocalArbiter(os.path.join(".", self.config_filename))
-        try:
-            arbiter.run_event_loop(close_after=8.0)
-        except RuntimeError:
-            # Event loop is always closed
-            print("RTE")
-            pass
-        final_artifacts = arbiter.await_run_complete()
-        print(final_artifacts[0].item.payload)
-        self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
+    def pregenerate_artifacts(self, backend):
+        pf = PipelineStageFactory()
+        config = PipelineStageConfig("StageA",
+                                     self.generate_pipeline_config()["StageA"])
+        stage = pf.create_pipeline_stage(config)
+        arts = []
+        for art in stage.yield_artifacts():
+            backend.save_artifact(art)
+            arts.append(art)
+        return arts
 
-    def test_pipeline_caching(self):
-        arbiter = LocalArbiter(os.path.join(".", self.config_filename))
-        try:        
-            arbiter.run_event_loop(close_after=3.0)
-        except RuntimeError:
-            # Event loop is always closed
-            pass
-        
-        final_artifacts = arbiter.await_run_complete()
-        for artifact in final_artifacts:
-            print(artifact.item.payload)
-        self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        arbiter = LocalArbiter(os.path.join(".", self.config_filename),
-                               loop)
-        arbiter.reset()
-        try:                
-            arbiter.run_event_loop(close_after=3.0)
-        except RuntimeError:
-            # Event loop is always closed
-            pass
-            
-        final_artifacts = arbiter.await_run_complete()
-        self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_cache, True)
+    def test_run(self):
+        backend = LocalArtifactBackend()
+        arts = self.pregenerate_artifacts(backend)
+        loop = asyncio.set_event_loop(asyncio.new_event_loop())
+        executor = LocalCPUExecutor(loop=loop)
+        server = ExecutorServer(backend, executor)
+        job_id = server.enqueue_job({"stage_name": "StageB",
+                            "stage_config": self.generate_pipeline_config()["StageB"],
+                            "artifacts":  list(map(lambda x: x.meta_to_dict(), arts))
+        })
+        server.run_event_loop(2)
+        job_result = server.retrieve_job(job_id)
+        self.assertEqual(len(job_result['artifacts']), 1)
+        self.assertEqual(self.testfile_contents,
+                         job_result['artifacts'][0].item.payload)

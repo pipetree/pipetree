@@ -60,7 +60,7 @@ class Artifact(object):
 
         # Set when an artifact is loaded from cache rather than generated freshly
         self._loaded_from_cache = False
-        
+
         # Listing of meta properties for serialization purposes
         self._meta_properties = [
             "antecedents", "creation_time", "definition_hash",
