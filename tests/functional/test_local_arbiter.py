@@ -81,12 +81,12 @@ class TestLocalArbiter(unittest.TestCase):
 
     def test_pipeline_caching(self):
         arbiter = LocalArbiter(os.path.join(".", self.config_filename))
-        try:        
+        try:
             arbiter.run_event_loop(close_after=3.0)
         except RuntimeError:
             # Event loop is always closed
             pass
-        
+
         final_artifacts = arbiter.await_run_complete()
         for artifact in final_artifacts:
             print(artifact.item.payload)
@@ -98,12 +98,13 @@ class TestLocalArbiter(unittest.TestCase):
         arbiter = LocalArbiter(os.path.join(".", self.config_filename),
                                loop)
         arbiter.reset()
-        try:                
+        print("========= Second run of pipeline to test caching ======")
+        try:
             arbiter.run_event_loop(close_after=3.0)
         except RuntimeError:
             # Event loop is always closed
             pass
-            
+
         final_artifacts = arbiter.await_run_complete()
         self.assertEqual(len(final_artifacts), 1)
         self.assertEqual(final_artifacts[0]._loaded_from_cache, True)

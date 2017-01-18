@@ -38,7 +38,7 @@ class PipelineStageConfig(object):
                             % type(data))
         attach_config_to_object(self, data)
         self.name = key
-
+        self.raw_config = data
         if not hasattr(self, "type"):
             raise MissingPipelineAttributeError(
                 attribute="type",

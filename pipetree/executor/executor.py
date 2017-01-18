@@ -19,13 +19,11 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import click
 import asyncio
-import signal
 import json
-from concurrent.futures import CancelledError
 
 ALL_ARTIFACTS_GENERATED = "ALL_ARTIFACTS_GENERATED"
+
 
 class ExecutorTask(object):
     def __init__(self, loop, stage, input_artifacts):
@@ -35,13 +33,15 @@ class ExecutorTask(object):
         """
         self._input_artifacts = input_artifacts
         self._stage = stage
-        self._loop = None #loop
-        self._queue = asyncio.Queue(loop=self._loop)        
+        self._loop = loop
+        self._queue = asyncio.Queue(loop=self._loop)
 
     def serialize(self):
         return json.dumps({
-            "stage_name": stage._config.name,
-            "artifacts": list(map(lambda x: x.meta_to_dict(), input_artifacts))
+            "stage_name": self._stage._config.name,
+            "stage_config": self._stage._config.raw_config,
+            "artifacts": list(map(lambda x: x.meta_to_dict(),
+                                  self._input_artifacts))
         })
 
     def load_from_json(self):
@@ -56,12 +56,12 @@ class ExecutorTask(object):
         so that consumers can finish waiting.
         """
         self._queue.put_nowait((None, ALL_ARTIFACTS_GENERATED))
-    
+
     async def generate_artifacts(self):
         """
-        Returns all artifacts produced by this stage. 
+        Returns all artifacts produced by this stage.
         To stream artifact results, the queue can be accessed
-        directly. 
+        directly.
         """
         artifacts = []
         while True:
@@ -70,6 +70,7 @@ class ExecutorTask(object):
                 break
             artifacts.append(artifact)
         return artifacts
+
 
 class Executor(object):
     def __init__(self, loop):
@@ -86,4 +87,3 @@ class Executor(object):
 
     def _process_queue(self):
         raise NotImplementedError
-
