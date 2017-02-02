@@ -94,11 +94,13 @@ class ArbiterBase(object):
 
 
 class LocalArbiter(ArbiterBase):
-    def __init__(self, filepath, loop=None):
+    def __init__(self, filepath, loop=None, backend=None):
         super().__init__(filepath, loop)
         self._local_cpu_executor = LocalCPUExecutor(self._loop)
         self._default_executor = self._local_cpu_executor
-        self._artifact_backend = LocalArtifactBackend()
+        if backend is None:
+            backend = LocalArtifactBackend()
+        self._artifact_backend = backend
 
     def _log(self, text):
         print("LocalArbiter: %s" % text)
@@ -162,6 +164,8 @@ class LocalArbiter(ArbiterBase):
             ]))
         except CancelledError:
             self._log('CancelledError raised: closing event loop.')
+            with self._lock:
+                self._run_complete = True
         finally:
             self._loop.close()
 

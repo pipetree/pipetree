@@ -23,9 +23,14 @@
 import os
 import os.path
 import copy
+from collections import OrderedDict
+from decimal import *
 import distutils.dir_util
 import json
 import threading
+import boto3
+import botocore
+import time
 
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import ArtifactMissingPayloadError
@@ -254,6 +259,7 @@ class LocalArtifactBackend(ArtifactBackend):
                                              artifact.item.type)
             if artifact.get_uid() in item_meta:
                 artifact.meta_from_dict(item_meta[artifact.get_uid()])
+                artifact._loaded_from_local_cache = True
                 return artifact
 
             return None
@@ -262,6 +268,7 @@ class LocalArtifactBackend(ArtifactBackend):
             sorted_artifacts = self._sorted_artifacts(artifact)
             if len(sorted_artifacts) == 0:
                 return None
+            sorted_artifacts[0]._loaded_from_local_cache = True
             return sorted_artifacts[0]
         raise NotImplementedError
 
@@ -427,3 +434,344 @@ class LocalArtifactBackend(ArtifactBackend):
             sorted_artifacts.append(a)
 
         return sorted_artifacts
+
+class S3ArtifactBackend(ArtifactBackend):
+    """
+    Provide an S3 + DynamoDB storage backend for generated artifacts 
+    and their metadata.
+    """
+    DEFAULTS = {
+        "path": "~/.pipetree/local_cache/",
+        "enable_local_caching": True,
+        "metadata_file": "pipeline.meta",
+        "dynamodb_db_name": "pipetree_db",
+        "dynamodb_artifact_table_name": "pipetree_artifact_meta",
+        "dynamodb_stage_run_table_name": "pipetree_stage_run_meta",
+    }
+
+    def __init__(self, s3_bucket_name, aws_region, aws_profile=None,
+                 path=DEFAULTS['path'], **kwargs):
+        super().__init__(path=path, **kwargs)
+        self._localArtifactBackend = LocalArtifactBackend(path=path, **kwargs)
+        self._s3_bucket_name = s3_bucket_name
+        self._aws_region = aws_region
+        self._aws_profile = aws_profile
+
+        try:
+            self._session = boto3.Session(profile_name=aws_profile,
+                                    region_name=aws_region)
+        except botocore.exceptions.NoCredentialsError:
+            self._session = boto3.Session(region_name=aws_region)
+
+        self._stage_run_table = None
+        self._artifact_meta_table = None
+        self._setup_s3()
+        self._setup_dynamo_db()
+
+    def _setup_s3(self):
+        self._s3_client = self._session.client('s3')
+        try:
+            self._s3_client.create_bucket(Bucket=self._s3_bucket_name,
+                                          CreateBucketConfiguration={
+                                              'LocationConstraint': self._aws_region})
+        except botocore.exceptions.ClientError as err:
+            # Bucket already created? Good to go.
+            print("Bucket already created. ClientError: %s" % err)
+            pass
+
+    def _setup_dynamo_db(self):
+        """
+        Setup local dynamodb resource
+
+        Setup local dynamodb tables as well. We define non-indexed columns
+        despite not needing them in table creation, for our own convenience.
+        """
+        self._dynamodb = self._session.resource('dynamodb')
+
+        stage_run_keys = OrderedDict([
+            ('stage_config_hash', 'HASH'),
+            ('dependency_hash', 'RANGE')
+        ])
+        stage_run_fields = {
+            'stage_config_hash': 'S',
+            'dependency_hash': 'S',
+            'stage_run_status': 'S',
+            'metadata': 'S',
+            'start_time': 'N',
+            'end_time': 'N'
+        }
+        self._stage_run_table = self._dynamo_db_create_table(
+            self.dynamodb_stage_run_table_name,
+            stage_run_keys,
+            stage_run_fields)
+        
+        artifact_meta_keys = {
+            'artifact_uid': 'HASH',
+        }
+        artifact_meta_fields = {
+            'artifact_uid': 'S',
+            'artifact_meta': 'S',
+            'creation_time': 'N'
+        }
+        self._artifact_meta_table = self._dynamo_db_create_table(
+            self.dynamodb_artifact_table_name,
+            artifact_meta_keys,
+            artifact_meta_fields)
+        
+    def _dynamo_db_create_table(self, table_name, keys, fields,
+                                write_units=1, read_units=1):
+        keySchema = []
+        attributeDefinitions = []        
+        for key in keys:
+            keySchema.append({'AttributeName': key,
+                              'KeyType': keys[key]})
+        for key in fields:
+            if key in keys:
+                attributeDefinitions.append({'AttributeName': key,
+                                             'AttributeType': fields[key]})
+        try:
+            table = self._dynamodb.create_table(
+                TableName=table_name,
+                KeySchema=keySchema,
+                AttributeDefinitions=attributeDefinitions,
+                ProvisionedThroughput={
+                    'ReadCapacityUnits': read_units,
+                    'WriteCapacityUnits': write_units
+                }
+            )
+            table.meta.client.get_waiter('table_exists').wait(TableName=table_name)
+            return table
+        except botocore.exceptions.ClientError:
+            # If the table already exists, load and return that table.
+            return self._dynamodb.Table(table_name)
+
+    def _validate_config(self):
+        return True
+
+    def _relative_artifact_dir(self, artifact):
+        """
+        Returns the relative directory to house artifacts from a given
+        stage and of a given item type.
+        """
+        it = "default"
+        if artifact.item is not None and artifact.item.type is not None:
+            it = artifact.item.type
+        return os.path.join(artifact._pipeline_stage, it)
+
+    def _relative_artifact_path(self, artifact):
+        """
+        Returns the relative path for an artifact that has a specified
+        specific_hash, dependency_hash, definition_hash, stage and item type
+        """
+        return os.path.join(self._relative_artifact_dir(artifact),
+                            artifact.get_uid())
+
+    def save_artifact(self, artifact):
+        """
+        Saves an artifact locally on disk and in an S3 Bucket
+
+        Artifact must have all necessary metadata, including:
+         - specific_hash
+         - dependency_hash
+         - definition_hash
+        """
+        if artifact.item is None or artifact.item.payload is None:
+            raise ArtifactMissingPayloadError(stage=artifact._pipeline_stage)
+
+        # Cache the output locally and use local file for S3 upload
+        self._localArtifactBackend.save_artifact(artifact)
+
+        # Upload to S3
+        key = self.s3_artifact_key(artifact)
+        local_file = os.path.join(self.path, key)
+        self._s3_client.upload_file(local_file,
+                                    self._s3_bucket_name,
+                                    key)
+        
+        self._write_artifact_meta(artifact)
+
+    def _write_artifact_meta(self, artifact):
+        """
+        Writes this artifact's metadata to local storage & dynamodb
+        """
+        if self.enable_local_caching:
+            self._localArtifactBackend._write_artifact_meta(artifact)
+
+        # Insert artifact meta into DynamoDB
+        self._artifact_meta_table.put_item(
+            Item={
+                'artifact_uid': artifact.get_uid(),
+                'artifact_meta': json.dumps(artifact.meta_to_dict()),
+                'creation_time': Decimal(time.time())
+            }
+        )
+
+        # Update pipeline stage meta
+        stage_run_key = {
+            'stage_config_hash': str(artifact._definition_hash),
+            'dependency_hash': str(artifact._dependency_hash)
+        }
+        response = self._stage_run_table.get_item(Key=stage_run_key)
+
+        if 'Item' not in response:
+            # Create stage run meta            
+            self._stage_run_table.put_item(
+                Item={
+                    'stage_config_hash': artifact._definition_hash,
+                    'dependency_hash': str(artifact._dependency_hash),
+                    'stage_run_status': STAGE_IN_PROGRESS,
+                    'metadata': json.dumps({'artifacts': [
+                        {'uid': artifact.get_uid(),
+                         'specific_hash': artifact._specific_hash,
+                         'type': artifact.item.type}
+                    ]}, sort_keys=True)
+                }
+            )
+        else:
+            # Update stage meta
+            meta = json.loads(response['Item']['metadata'])
+            meta['artifacts'].append({
+                "uid": artifact.get_uid(),
+                "type": artifact.item.type,
+                "specific_hash": artifact._specific_hash
+            })
+            self._stage_run_table.update_item(
+                Key=stage_run_key,
+                UpdateExpression='SET metadata = :metaVal, stage_run_status= :status',
+                # The condition expression ensures metadata hasn't changed,
+                # effectively performing an atomic CAS
+                ConditionExpression='metadata = :oldMetaVal',
+                ExpressionAttributeValues={
+                    ':oldMetaVal': response['Item']['metadata'],
+                    ':metaVal': json.dumps(meta, sort_keys=True),
+                    ':status': STAGE_IN_PROGRESS
+                }
+            )
+            item = response['Item']
+
+    def _find_cached_artifact(self, artifact):
+        """
+        Loads the metadata, but not the payload of an artifact.
+        """
+
+        # Attempt to load artifact locally
+        if self.enable_local_caching:
+            res = self._localArtifactBackend._find_cached_artifact(artifact)
+            if res is not None:
+                return res
+
+        # Otherwise, query DynamoDB
+        art_key = {
+            'artifact_uid': artifact.get_uid()
+        }
+        response = self._artifact_meta_table.get_item(Key=art_key)
+        if 'Item' not in response:
+            return None
+        else:
+            artifact.meta_from_dict(json.loads(response['Item']['artifact_meta']))
+            artifact._loaded_from_s3_cache = True
+            return artifact
+        return None
+
+    def s3_artifact_key(self, artifact):
+        return self._relative_artifact_path(artifact)
+    
+    def _get_cached_artifact_payload(self, artifact):
+        """
+        Returns the payload for a given artifact, assuming that it
+        has already been produced and is cached on S3.
+        """
+        obj = self._s3_client.get_object(
+            Bucket= self._s3_bucket_name,
+            Key= self.s3_artifact_key(artifact)
+        )
+        return obj['Body'].read()
+
+    def log_pipeline_stage_run_complete(self, stage_config,
+                                           dependency_hash):
+        """
+        Record that the pipeline stage run for the given dependency hash and
+        definition hash completed successfully.
+        """
+        # Log locally
+        if self.enable_local_caching:
+            self._localArtifactBackend.log_pipeline_stage_run_complete(
+            stage_config, dependency_hash)
+        
+        # Update dynamo db
+        stage_run_key = {
+            'stage_config_hash': str(stage_config.hash()),
+            'dependency_hash': str(dependency_hash)
+        }
+        self._stage_run_table.update_item(
+            Key=stage_run_key,
+            UpdateExpression='SET stage_run_status = :status',
+            # The condition expression ensures metadata hasn't changed,
+            # effectively performing an atomic CAS
+            ExpressionAttributeValues={
+                ':status': STAGE_COMPLETE
+            }
+        )
+
+    def pipeline_stage_run_status(self, stage_config,
+                                  dependency_hash):
+        stage_run_key = {
+            'stage_config_hash': str(stage_config.hash()),
+            'dependency_hash': str(dependency_hash)
+        }
+        response = self._stage_run_table.get_item(Key=stage_run_key)
+        
+        if 'Item' not in response:
+            return STAGE_DOES_NOT_EXIST
+        else:
+            return response['Item']['stage_run_status']
+
+    def find_pipeline_stage_run_artifacts(self, stage_config,
+                                          dependency_hash):
+        """
+        Finds all artifacts for a given pipeline run, loading their
+        metadata.
+        """
+        # Update pipeline stage metaa
+        stage_run_key = {
+            'stage_config_hash': stage_config.hash(),
+            'dependency_hash': dependency_hash,
+        }
+        response = self._stage_run_table.get_item(Key=stage_run_key)
+        if 'Item' not in response:
+            return None
+        else:
+            res = []
+            meta = json.loads(response['Item']['metadata'])
+            for obj in meta['artifacts']:
+                art = Artifact(stage_config)
+                art.item.type = obj['type']
+                art._specific_hash = obj['specific_hash']
+                art._dependency_hash = dependency_hash
+                art._definition_hash = stage_config.hash()
+                res.append(self._find_cached_artifact(art))
+            return res
+
+    def _get_pipeline_stage_run_meta(self, stage_config,
+                                     dependency_hash):
+        """
+        Load metadata for a given run of a pipeline stage
+        """
+        try:
+            with open(os.path.join(
+                    self.path,
+                    stage_config.name,
+                    self._pipeline_stage_run_filename(
+                        dependency_hash,
+                        stage_config.hash())),
+                    'r') as f:
+                contents = json.load(f)
+                return contents
+        except FileNotFoundError:
+            return {}
+
+    def _sorted_artifacts(self, artifact):
+        """
+        Returns a sorted list of artifacts, based upon pruning ordering
+        """
+        raise NotImplementedError

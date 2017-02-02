@@ -43,10 +43,6 @@ class TestLocalArtifactBackend(unittest.TestCase):
             "type": "ParameterPipelineStage"
         })
 
-        self.stage_config = PipelineStageConfig("test_stage_name", {
-            "type": "ParameterPipelineStage"
-        })
-
         # Build directory structure
         os.makedirs(self.dirname)
         for name, data in zip(self.filename, self.filedatas):

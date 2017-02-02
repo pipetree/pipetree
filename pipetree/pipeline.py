@@ -28,7 +28,7 @@ from pipetree.stage import PipelineStageFactory
 from pipetree.loaders import PipelineConfigLoader
 from pipetree.exceptions import DuplicateStageNameError
 from pipetree.futures import InputFuture
-from pipetree.backend import STAGE_COMPLETE
+from pipetree.backend import STAGE_COMPLETE, STAGE_IN_PROGRESS
 
 
 class DependencyChain(object):
@@ -128,7 +128,7 @@ class Pipeline(object):
         dependency_hash = self._dependency_hash(input_artifacts)
         status = backend.pipeline_stage_run_status(
             stage, dependency_hash)
-        if status == STAGE_COMPLETE:
+        if status == STAGE_COMPLETE or status == STAGE_IN_PROGRESS:
             cached_arts = backend.find_pipeline_stage_run_artifacts(
                 stage._config, dependency_hash)
             self._log("Loaded %d cached artifacts for stage %s" %\
@@ -226,7 +226,6 @@ class Pipeline(object):
     @property
     def endpoints(self):
         return self._endpoints
-
 
 class PipelineFactory(object):
     def __init__(self):
