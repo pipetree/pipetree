@@ -156,7 +156,7 @@ class TestS3ArtifactBackend(unittest.TestCase):
         artifact.item.payload = "foobs"
         s3_backend.save_artifact(artifact)
         self.cleanup_test_tables(self._default_backend)
-        
+
     def test_no_profile(self):
         x = random.randrange(10000000000000)
         try:
