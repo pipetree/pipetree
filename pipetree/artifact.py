@@ -22,11 +22,15 @@
 import hashlib
 import inspect
 import json
-from pipetree.exceptions import InvalidArtifactMetadataError
+from pipetree.exceptions import InvalidArtifactMetadataError,\
+    ArtifactUnknownSerializationTypeError
 
 
 class Artifact(object):
-    def __init__(self, pipeline_stage_config, item=None):
+    def __init__(self,
+                 pipeline_stage_config,
+                 item=None,
+                 serialization_type="json"):
         # Item containing user meta, payload, and tags.
         # Item may be none, in which case the artifact is not yet
         # fully loaded, or has not yet been generated.
@@ -61,11 +65,13 @@ class Artifact(object):
         # Set when an artifact is loaded from cache rather than generated freshly
         self._loaded_from_cache = False
 
+        self._serialization_type = serialization_type
+
         # Listing of meta properties for serialization purposes
         self._meta_properties = [
             "antecedents", "creation_time", "definition_hash",
             "specific_hash", "dependency_hash",
-            "pipeline_stage"]
+            "pipeline_stage", "serialization_type"]
 
         # Listing of item properties for serialization purposes
         self._item_properties = [
@@ -96,7 +102,7 @@ class Artifact(object):
         """
         Generate a unique ID for this artifact.
         """
-        return generate_uid(self._specific_hash, self._dependency_hash,
+        return self.generate_uid(self._specific_hash, self._dependency_hash,
                             self._definition_hash)
 
     def meta_to_dict(self):
@@ -144,8 +150,56 @@ class Artifact(object):
             else:
                 setattr(self.item, prop, d['item'][prop])
 
+    def serialize_payload(self):
+        if self._serialization_type == "json":
+            return json.dumps(self.item.payload)
+        if self._serialization_type == "string":
+            return self.item.payload
+        if self._serialization_type == "bytestream":
+            raise NotImplementedError
+        raise ArtifactUnknownSerializationTypeError(
+            stage=self._stage,
+            stype=self._serialization_type)
 
-def generate_uid(_specific_hash, _dependency_hash, _definition_hash):
+    @staticmethod
+    def decode_stringlike(stringlike):
+        if isinstance(stringlike, bytes):
+            return stringlike.decode('utf-8')
+        if isinstance(stringlike, str):
+            return stringlike
+        return None
+
+    def load_payload(self, payload):
+        s = self.decode_stringlike(payload)
+
+        if self._serialization_type == "json":
+            self.item.payload = json.loads(s)
+        elif self._serialization_type == "string":
+            self.item.payload = s
+        elif self._serialization_type == "bytestream":
+            raise NotImplementedError
+        else:
+            raise ArtifactUnknownSerializationTypeError(
+                stage=self._stage,
+                stype=self._serialization_type)
+
+    @staticmethod
+    def dependency_hash(input_artifacts):
+        """
+        Generate an idempotent dependency hash representing the unique
+        set of input artifacts provided.
+
+        We do this by generating unique IDs for all input artifacts,
+        then sorting those IDs and hashing their concatenation
+        """
+        uids = map(lambda x: x.get_uid(), input_artifacts)
+        h = hashlib.md5()
+        for u in uids:
+            h.update(u.encode('utf-8'))
+        return str(h.hexdigest())
+
+    @staticmethod
+    def generate_uid(_specific_hash, _dependency_hash, _definition_hash):
         specific_hash = ""
         if _specific_hash is not None:
             specific_hash = _specific_hash

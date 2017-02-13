@@ -1,1 +1,1 @@
-from .arbiter import LocalArbiter, RemoteArbiter
+from .arbiter import LocalArbiter, RemoteSQSArbiter

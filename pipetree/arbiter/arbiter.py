@@ -27,6 +27,8 @@ from pipetree.executor.local import LocalCPUExecutor
 from pipetree.pipeline import PipelineFactory
 from pipetree.backend import LocalArtifactBackend
 from concurrent.futures import CancelledError
+from pipetree import settings
+from pipetree.utils import attach_config_to_object
 
 
 class ArbiterBase(object):
@@ -170,5 +172,95 @@ class LocalArbiter(ArbiterBase):
             self._loop.close()
 
 
-class RemoteArbiter(ArbiterBase):
-    pass
+class RemoteSQSArbiter(ArbiterBase):
+    DEFAULTS = {
+        "s3_bucket_name": settings.S3_ARTIFACT_BUCKET_NAME,
+        "aws_region": settings.AWS_REGION,
+        "aws_profile": settings.AWS_PROFILE,
+        "artifact_table_name": settings.DYNAMODB_ARTIFACT_TABLE_NAME,
+        "stage_run_table_name": settings.DYNAMODB_STAGE_RUN_TABLE_NAME
+    }
+
+    def __init__(self, filepath, loop=None, **kwargs):
+        super().__init__(filepath, loop)
+
+        config = copy.copy(self.DEFAULTS)
+        config.update(kwargs)
+        self._config = kwargs
+        attach_config_to_object(self, config)
+
+        self.backend = S3ArtifactBackend(s3_bucket_name=conf.test_bucket_name,
+                                         aws_region=conf.test_region,
+                                         aws_profile=conf.test_profile,
+                                         dynamodb_artifact_table_name=
+                                         conf.test_dynamodb_artifact_table_name,
+                                         dynamodb_stage_run_table_name=
+                                         conf.test_dynamodb_stage_run_name)
+
+
+    def _log(self, text):
+        print("RemoteSQSArbiter: %s" % text)
+
+    async def _resolve_future_inputs(self, future):
+        """
+        Ensure that all input futures to this future will be resolved.
+        Once all tasks have been created, we call
+        set_all_associated_futures_created so that we can block on
+        this future as necessary.
+        """
+        for input_stage in future._input_sources:
+            future.add_associated_future(asyncio.ensure_future(
+                self._pipeline.generate_stage(
+                    input_stage,
+                    self.enqueue,
+                    self._local_cpu_executor,
+                    self._artifact_backend
+                )))
+        future.set_all_associated_futures_created()
+
+    async def _listen_to_queue(self):
+        try:
+            while True:
+                self._log("Listening on queue")
+
+                # Extract future from queue
+                future = await self._queue.get()
+                self._log('Read: %s' % future._input_sources)
+
+                # Create an async job to generate all input futures
+                # associated with this future, and to ensure they resolve.
+                asyncio.ensure_future(self._resolve_future_inputs(future))
+        except RuntimeError:
+            pass
+
+    async def _main(self):
+        await self._evaluate_pipeline()
+
+    async def _close_after(self, num_seconds):
+        if num_seconds is None:
+            return
+        await asyncio.sleep(num_seconds)
+        self.shutdown()
+        raise CancelledError
+
+    def shutdown(self):
+        for task in asyncio.Task.all_tasks():
+            task.cancel()
+
+    def run_event_loop(self, close_after=None):
+        self._loop.add_signal_handler(signal.SIGHUP, self.shutdown)
+        self._loop.add_signal_handler(signal.SIGINT, self.shutdown)
+        self._loop.add_signal_handler(signal.SIGTERM, self.shutdown)
+
+        try:
+            self._loop.run_until_complete(asyncio.wait([
+                self._close_after(close_after),
+                self._main(),
+                self._listen_to_queue()
+            ]))
+        except CancelledError:
+            self._log('CancelledError raised: closing event loop.')
+            with self._lock:
+                self._run_complete = True
+        finally:
+            self._loop.close()

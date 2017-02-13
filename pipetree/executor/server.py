@@ -22,7 +22,7 @@
 import signal
 import asyncio
 import threading
-from flask import Flask
+import time
 from concurrent.futures import CancelledError
 from pipetree.artifact import Artifact
 from pipetree.stage import PipelineStageFactory
@@ -51,7 +51,7 @@ class ExecutorServer(object):
     def _log(self, message):
         print("ExecutorServer: %s" % message)
 
-    def enqueue_job(self, task):
+    def enqueue_job(self, job):
         """
         Accept the JSON representation of a task and its artifacts.
         returns a unique job ID
@@ -60,12 +60,13 @@ class ExecutorServer(object):
         which contains a JSON list of Artifact.meta_to_dict() as well
         as stage information
         """
+
         job_id = -1
         with self._lock:
             self._job_count += 1
             job_id = self._job_count
             self._jobs[job_id] = {"status": "queued"}
-        self._queue.put_nowait((job_id, task))
+        self._queue.put_nowait((job_id, job))
         return job_id
 
     def retrieve_job(self, job_id):
@@ -85,32 +86,43 @@ class ExecutorServer(object):
         config = PipelineStageConfig(job['stage_name'], job['stage_config'])
         stage = pf.create_pipeline_stage(config)
 
-        # Load artifact payloads from cache
+        # Load input artifact payloads from cache
         loaded_artifacts = []
         for artifact in job['artifacts']:
             art_obj = Artifact(stage._config)
             art_obj.meta_from_dict(artifact)
-            print(art_obj._pipeline_stage)
             loaded = self._backend.load_artifact(art_obj)
             if loaded is None:
+                self._log("Could not find payload for artifact")
                 raise Exception("Could not find payload for artifact")
             loaded_artifacts.append(loaded)
 
         # Execute the task
         exec_task = self._executor.create_task(stage, loaded_artifacts)
         result = await exec_task.generate_artifacts()
+
+        for art in result:
+            art._creation_time = float(time.time())
+            art._dependency_hash = Artifact.dependency_hash(loaded_artifacts)
+            self._backend.save_artifact(art)
+        self._backend.log_pipeline_stage_run_complete(
+            config,
+            Artifact.dependency_hash(loaded_artifacts))
+
         return result
 
     async def _listen_to_queue(self):
         while True:
             self._log("Listening on queue")
             job_id, job = await self._queue.get()
-            self._log('Read: %s' % job)
+            self._log('Acquired job for stage: %s' % job['stage_name'])
             result_artifacts = await self._run_job(job)
             with self._lock:
                 self._jobs[job_id] = {"status": "complete",
                                       "artifacts": result_artifacts,
                                       "job": job}
+                self._log("Job complete: %d for stage %s" %
+                          (job_id,  job['stage_name']))
 
     def shutdown(self):
         for task in asyncio.Task.all_tasks():

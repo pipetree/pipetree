@@ -38,7 +38,9 @@ from pipetree.backend import S3ArtifactBackend, LocalArtifactBackend, STAGE_COMP
 from pipetree.config import PipelineStageConfig
 from pipetree.artifact import Artifact, Item
 
-class TestS3ArtifactBackend(unittest.TestCase):
+from aws_base import AWSTestBase
+
+class TestS3ArtifactBackend(AWSTestBase):
     def setUp(self):
         # File system configuration
         self.filename = ['foo.bar', 'foo.baz']
@@ -62,27 +64,6 @@ class TestS3ArtifactBackend(unittest.TestCase):
         # Cleanup before each test is run
         self.cleanup_test_tables(self._default_backend)            
 
-    @classmethod
-    def setUpClass(cls):
-        x = random.randrange(10000000000000)
-        cls.test_bucket_name = "pipetree-test-bucket-" + str(x)
-        cls.test_region = "us-west-1"
-        cls.test_profile = "testing"
-        cls.test_dynamodb_artifact_table_name = "pipetree_test_artifact_meta"
-        cls.test_dynamodb_stage_run_name = "pipetree_test_stage_run"
-
-        cls._session = boto3.Session(profile_name=cls.test_profile,
-                                      region_name=cls.test_region)
-        cls._default_backend = cls.newBackend(cls)
-
-        # Delete buckets and rows in table
-        cls.cleanup_test_tables(cls._default_backend)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.cleanup_buckets(cls._default_backend._s3_client)
-        cls.cleanup_test_tables(cls._default_backend)
-
     def generate_pipeline_config(self):
         return OrderedDict([(
             'StageA', {
@@ -93,61 +74,6 @@ class TestS3ArtifactBackend(unittest.TestCase):
                 'inputs': ['StageA'],
                 'type': 'IdentityPipelineStage'
             })]
-        )
-
-    @staticmethod
-    def cleanup_buckets(client):
-        for bucket in client.list_buckets()['Buckets']:
-            if 'pipetree-test' in bucket['Name']:
-                print("Deleting test bucket: %s" % bucket['Name'])
-                listed = client.list_objects_v2(Bucket=bucket['Name'])
-                if 'Contents' in listed:
-                    objs = listed['Contents']
-                    response = client.delete_objects(
-                        Bucket=bucket['Name'],
-                        Delete={'Objects': [{"Key": x["Key"]} for x in objs]})
-                client.delete_bucket(Bucket=bucket['Name'])
-
-    @staticmethod
-    def newBackend(conf):
-        return S3ArtifactBackend(s3_bucket_name=conf.test_bucket_name,
-                                 aws_region=conf.test_region,
-                                 aws_profile=conf.test_profile,
-                                 dynamodb_artifact_table_name=
-                                 conf.test_dynamodb_artifact_table_name,
-                                 dynamodb_stage_run_table_name=
-                                 conf.test_dynamodb_stage_run_name)
-
-    def tearDown(self):
-
-        self.fs.__exit__(None, None, None)
-
-    def tearDownClass():
-        pass
-
-    @staticmethod
-    def delete_all_rows(table_name, table, key_names):
-        response = table.scan()
-        keys = []
-        for item in response['Items']:
-            obj = {}
-            for k in key_names:
-                obj[k] = item[k]
-            keys.append(obj)
-        with table.batch_writer() as batch:
-            for k in keys:
-                batch.delete_item(Key=k)
-
-    @staticmethod
-    def cleanup_test_tables(backend):
-        TestS3ArtifactBackend.delete_all_rows(backend.dynamodb_stage_run_table_name,
-                                              backend._stage_run_table,
-                                              ['stage_config_hash', 'dependency_hash']
-        )
-
-        TestS3ArtifactBackend.delete_all_rows(backend.dynamodb_artifact_table_name,
-                                              backend._artifact_meta_table,
-                                              ['artifact_uid']
         )
 
     def test_save_artifact(self):

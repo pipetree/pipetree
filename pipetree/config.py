@@ -54,7 +54,6 @@ class PipelineStageConfig(object):
         """
         Hash a pipeline stage in an idempotent way
         """
-
         ignore = ['parent_class']
         props = {k: getattr(self, k)
                  for k in dir(self)

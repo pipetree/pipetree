@@ -80,6 +80,11 @@ class ArtifactMissingPayloadError(PipetreeError):
     message = 'Artifact from stage {stage} is missing its payload'
 
 
+class ArtifactUnknownSerializationTypeError(PipetreeError):
+    message = 'Artifact from stage {stage} is has invalid '\
+              + 'serialization type {stype}'
+
+
 class StageDoesNotExistError(PipetreeError):
     message = 'Specified pipeline stage {stage} does not exist'
 

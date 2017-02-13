@@ -32,6 +32,7 @@ import boto3
 import botocore
 import time
 
+from pipetree import settings
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import ArtifactMissingPayloadError
 from pipetree.artifact import Artifact
@@ -62,8 +63,8 @@ class ArtifactBackend(object):
         if cached_artifact is None:
             return None
         else:
-            cached_artifact.item.payload = self._get_cached_artifact_payload(
-                cached_artifact)
+            cached_artifact.load_payload(self._get_cached_artifact_payload(
+                cached_artifact))
             return cached_artifact
 
     def save_artifact(self, artifact):
@@ -193,7 +194,7 @@ class LocalArtifactBackend(ArtifactBackend):
             with open(os.path.join(self.path,
                                    self._relative_artifact_path(artifact)),
                       'w') as f:
-                f.write(artifact.item.payload)
+                f.write(artifact.serialize_payload())
 
         self._write_artifact_meta(artifact)
         self._record_pipeline_stage_run_artifact(artifact)
@@ -435,6 +436,7 @@ class LocalArtifactBackend(ArtifactBackend):
 
         return sorted_artifacts
 
+
 class S3ArtifactBackend(ArtifactBackend):
     """
     Provide an S3 + DynamoDB storage backend for generated artifacts 
@@ -444,24 +446,22 @@ class S3ArtifactBackend(ArtifactBackend):
         "path": "~/.pipetree/local_cache/",
         "enable_local_caching": True,
         "metadata_file": "pipeline.meta",
-        "dynamodb_db_name": "pipetree_db",
-        "dynamodb_artifact_table_name": "pipetree_artifact_meta",
-        "dynamodb_stage_run_table_name": "pipetree_stage_run_meta",
+        "aws_region": settings.AWS_REGION,
+        "aws_profile": settings.AWS_PROFILE,
+        "s3_bucket_name": settings.S3_ARTIFACT_BUCKET_NAME,
+        "dynamodb_artifact_table_name": settings.DYNAMODB_ARTIFACT_TABLE_NAME,
+        "dynamodb_stage_run_table_name": settings.DYNAMODB_STAGE_RUN_TABLE_NAME
     }
 
-    def __init__(self, s3_bucket_name, aws_region, aws_profile=None,
-                 path=DEFAULTS['path'], **kwargs):
+    def __init__(self, path=DEFAULTS['path'], **kwargs):
         super().__init__(path=path, **kwargs)
         self._localArtifactBackend = LocalArtifactBackend(path=path, **kwargs)
-        self._s3_bucket_name = s3_bucket_name
-        self._aws_region = aws_region
-        self._aws_profile = aws_profile
 
         try:
-            self._session = boto3.Session(profile_name=aws_profile,
-                                    region_name=aws_region)
+            self._session = boto3.Session(profile_name=self.aws_profile,
+                                    region_name=self.aws_region)
         except botocore.exceptions.NoCredentialsError:
-            self._session = boto3.Session(region_name=aws_region)
+            self._session = boto3.Session(region_name=self.aws_region)
 
         self._stage_run_table = None
         self._artifact_meta_table = None
@@ -471,12 +471,12 @@ class S3ArtifactBackend(ArtifactBackend):
     def _setup_s3(self):
         self._s3_client = self._session.client('s3')
         try:
-            self._s3_client.create_bucket(Bucket=self._s3_bucket_name,
+            self._s3_client.create_bucket(Bucket=self.s3_bucket_name,
                                           CreateBucketConfiguration={
-                                              'LocationConstraint': self._aws_region})
+                                              'LocationConstraint': self.aws_region})
         except botocore.exceptions.ClientError as err:
             # Bucket already created? Good to go.
-            print("Bucket already created. ClientError: %s" % err)
+            print("Bucket %s already created" % self.s3_bucket_name)
             pass
 
     def _setup_dynamo_db(self):
@@ -585,7 +585,7 @@ class S3ArtifactBackend(ArtifactBackend):
         key = self.s3_artifact_key(artifact)
         local_file = os.path.join(self.path, key)
         self._s3_client.upload_file(local_file,
-                                    self._s3_bucket_name,
+                                    self.s3_bucket_name,
                                     key)
         
         self._write_artifact_meta(artifact)
@@ -637,14 +637,14 @@ class S3ArtifactBackend(ArtifactBackend):
             })
             self._stage_run_table.update_item(
                 Key=stage_run_key,
-                UpdateExpression='SET metadata = :metaVal, stage_run_status= :status',
+                UpdateExpression='SET metadata = :metaVal',#, stage_run_status= :status',
                 # The condition expression ensures metadata hasn't changed,
                 # effectively performing an atomic CAS
                 ConditionExpression='metadata = :oldMetaVal',
                 ExpressionAttributeValues={
                     ':oldMetaVal': response['Item']['metadata'],
                     ':metaVal': json.dumps(meta, sort_keys=True),
-                    ':status': STAGE_IN_PROGRESS
+                    #':status': STAGE_IN_PROGRESS
                 }
             )
             item = response['Item']
@@ -682,7 +682,7 @@ class S3ArtifactBackend(ArtifactBackend):
         has already been produced and is cached on S3.
         """
         obj = self._s3_client.get_object(
-            Bucket= self._s3_bucket_name,
+            Bucket= self.s3_bucket_name,
             Key= self.s3_artifact_key(artifact)
         )
         return obj['Body'].read()
@@ -737,6 +737,7 @@ class S3ArtifactBackend(ArtifactBackend):
             'stage_config_hash': stage_config.hash(),
             'dependency_hash': dependency_hash,
         }
+
         response = self._stage_run_table.get_item(Key=stage_run_key)
         if 'Item' not in response:
             return None

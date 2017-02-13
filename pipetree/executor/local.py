@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 from pipetree.executor import Executor
 
+
 class LocalCPUExecutor(Executor):
     def __init__(self, loop):
         super().__init__(loop)
@@ -31,8 +32,9 @@ class LocalCPUExecutor(Executor):
         try:
             while True:
                 task = await self._queue.get()
-                self._log('Acquired Task: %s' % task)
-                self._log('\tInputs: %s' % task._input_artifacts)
+                self._log('Acquired Task: %s with %d inputs' %
+                    (task._stage._config.name,
+                     len(task._input_artifacts)))
                 for artifact in task._stage.yield_artifacts(
                         input_artifacts=task._input_artifacts):
                     task.enqueue_artifact(artifact)

@@ -22,7 +22,7 @@
 import os
 import inspect
 import importlib.util
-from pipetree.storage import LocalDirectoryArtifactProvider,\
+from pipetree.providers import LocalDirectoryArtifactProvider,\
     LocalFileArtifactProvider,\
     ParameterArtifactProvider
 from pipetree.exceptions import InvalidConfigurationFileError
@@ -64,7 +64,7 @@ class ParameterPipelineStage(BasePipelineStage):
 
     def params_from_config(self, config):
         """ Extract parameters from a config"""
-        exclude = ['type']
+        exclude = ['type', 'raw_config', 'parent_class']
         params = {}
         for prop in dir(config):
             value = getattr(config, prop)

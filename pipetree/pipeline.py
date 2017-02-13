@@ -29,6 +29,7 @@ from pipetree.loaders import PipelineConfigLoader
 from pipetree.exceptions import DuplicateStageNameError
 from pipetree.futures import InputFuture
 from pipetree.backend import STAGE_COMPLETE, STAGE_IN_PROGRESS
+from pipetree.artifact import Artifact
 
 
 class DependencyChain(object):
@@ -91,20 +92,6 @@ class Pipeline(object):
     def _log(self, text):
         print("Pipeline: %s" % text)
 
-    def _dependency_hash(self, input_artifacts):
-        """
-        Generate an idempotent dependency hash representing the unique
-        set of input artifacts provided.
-
-        We do this by generating unique IDs for all input artifacts,
-        then sorting those IDs and hashing their concatenation
-        """
-        uids = map(lambda x: x.get_uid(), input_artifacts)
-        h = hashlib.md5()
-        for u in uids:
-            h.update(u.encode('utf-8'))
-        return str(h.hexdigest())
-
     def _ensure_artifact_meta(self, artifact, dependency_hash):
         """
         Ensure that an artifact has the required default metadata.
@@ -125,7 +112,7 @@ class Pipeline(object):
         input artifacts.
         """
         stage = self._stages[stage_name]
-        dependency_hash = self._dependency_hash(input_artifacts)
+        dependency_hash = Artifact.dependency_hash(input_artifacts)
         status = backend.pipeline_stage_run_status(
             stage, dependency_hash)
         if status == STAGE_COMPLETE or status == STAGE_IN_PROGRESS:
@@ -154,7 +141,7 @@ class Pipeline(object):
                                                  input_artifacts,
                                                  backend)
         if cached_arts is not None:
-            self._log("Found %d cached artifacts for stage %s" % \
+            self._log("Found %d cached artifacts for stage %s" %
                       (len(cached_arts), stage_name))
             return cached_arts
 
@@ -163,18 +150,22 @@ class Pipeline(object):
         # returning generated artifacts
         stage = self._stages[stage_name]
         result = []
-        dependency_hash = self._dependency_hash(input_artifacts)
+        dependency_hash = Artifact.dependency_hash(input_artifacts)
 
         task = executor.create_task(self._stages[stage_name],
                                     input_artifacts)
         artifacts = await task.generate_artifacts()
 
         for art in artifacts:
-            self._log("Yielding a fresh artifact for stage %s" % stage_name)
-            self._log("\tPayload sample: %s " % str(art.item.payload)[0:50])
-            art = self._ensure_artifact_meta(art, dependency_hash)
-            backend.save_artifact(art)
-            result.append(art)
+            if hasattr(art, "_remotely_produced"):
+                self._log("Remotely produced artifact for %s" % stage_name)
+                result.append(art)
+            else:
+                self._log("Yielding fresh artifact for stage %s" % stage_name)
+                self._log("\tPayload: %s " % str(art.item.payload)[0:50])
+                art = self._ensure_artifact_meta(art, dependency_hash)
+                backend.save_artifact(art)
+                result.append(art)
 
         self._log("Done generating stage %s" % stage_name)
         backend.log_pipeline_stage_run_complete(stage, dependency_hash)
@@ -226,6 +217,7 @@ class Pipeline(object):
     @property
     def endpoints(self):
         return self._endpoints
+
 
 class PipelineFactory(object):
     def __init__(self):
