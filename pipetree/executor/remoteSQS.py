@@ -62,7 +62,7 @@ class RemoteSQSExecutor(Executor):
         except botocore.exceptions.NoCredentialsError:
             self._session = boto3.Session(region_name=aws_region)
         except botocore.exceptions.ProfileNotFound:
-            self._session = boto3.Session(region_name=self.aws_region)
+            self._session = boto3.Session(region_name=aws_region)
 
         self._backend = S3ArtifactBackend(
             aws_region=aws_region,
@@ -185,7 +185,7 @@ class RemoteSQSServer(object):
         except botocore.exceptions.NoCredentialsError:
             self._session = boto3.Session(region_name=aws_region)
         except botocore.exceptions.ProfileNotFound:
-            self._session = boto3.Session(region_name=self.aws_region)
+            self._session = boto3.Session(region_name=aws_region)
 
         # Setup SQS Queues
         self._sqs = self._session.resource('sqs')
