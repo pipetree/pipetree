@@ -64,6 +64,9 @@ class TestS3ArtifactBackend(AWSTestBase):
         # Cleanup before each test is run
         self.cleanup_test_tables(self._default_backend)            
 
+    def tearDown(self):
+        self.fs.__exit__(None, None, None)
+
     def generate_pipeline_config(self):
         return OrderedDict([(
             'StageA', {

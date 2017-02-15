@@ -1,8 +1,8 @@
-from pipetree import cluster
+from pipetree.cluster import RemoteServer
 
 
 def main():
-    server = cluster.RemoteServer("/var/pipetree/")
+    server = RemoteServer("/var/pipetree/")
     server.run()
 
 
