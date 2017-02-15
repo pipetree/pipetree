@@ -30,8 +30,8 @@ class TestCluster(unittest.TestCase):
         self._config = {
             "aws_region": "us-west-1",
             "s3_artifact_bucket_name": "pipetree-test-bucket",
-            "task_queue_name": "pipetree-test-task-queue",
-            "result_queue_name": "pipetree-test-result-queue",
+            "sqs_task_queue_name": "pipetree-test-task-queue",
+            "sqs_result_queue_name": "pipetree-test-result-queue",
             "dynamodb_artifact_table_name:": "piepetree-artifact-meta",
             "dynamodb_stage_run_table_name": "pipetree-stage-run-meta"
         }

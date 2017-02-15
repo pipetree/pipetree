@@ -1,1 +1,1 @@
-FROM mmcdermo/pipetree
+FROM mmcdermo/pipetree-dev

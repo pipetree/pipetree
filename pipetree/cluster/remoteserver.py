@@ -12,12 +12,13 @@ class RemoteServer(object):
 
     def run(self):
         self.load_config()
+        print(json.dumps(self._config, indent=4))
         self._server = RemoteSQSServer(
-            aws_region=self._config.aws_region,
-            s3_bucket_name=self._config.s3_artifact_bucket_name,
-            task_queue_name=self._config.sqs_task_queue_name,
-            result_queue_name=self._config.sqs_result_queue_name,
-            dynamodb_artifact_table_name=self._config.dynamodb_artifact_table_name,
-            dynamodb_stage_run_table_name=self._config.dynamodb_stage_run_name,
+            aws_region=self._config['aws_region'],
+            s3_bucket_name=self._config['s3_artifact_bucket_name'],
+            task_queue_name=self._config['sqs_task_queue_name'],
+            result_queue_name=self._config['sqs_result_queue_name'],
+            dynamodb_artifact_table_name=self._config['dynamodb_artifact_table_name'],
+            dynamodb_stage_run_table_name=self._config['dynamodb_stage_run_table_name']
         )
         self._server.run()
