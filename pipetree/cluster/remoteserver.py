@@ -1,5 +1,6 @@
 import os.path
 import json
+from pipetree.executor.remoteSQS import RemoteSQSServer
 
 class RemoteServer(object):
     def __init__(self, path):
