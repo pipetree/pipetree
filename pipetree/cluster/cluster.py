@@ -50,7 +50,7 @@ class PipetreeCluster(object):
         s3_bucket = r.S3BucketResource(context, self._s3_artifact_bucket_name)
         task_queue = r.SQSQueueResource(context, self._sqs_task_queue_name)
         result_queue = r.SQSQueueResource(context, self._sqs_result_queue_name)
-        application_name = self._application_name() 
+        application_name = self._application_name()
         deployment_group_name = self._deployment_group_name()
         deployment_group = r.CodeDeployDeploymentGroupResource(context,
                                                               application_name,
@@ -59,7 +59,7 @@ class PipetreeCluster(object):
         cluster.add_resource(task_queue)
         cluster.add_resource(result_queue)
         cluster.add_resource(s3_bucket)
-        cluster.add_resource(deployment_group)        
+        cluster.add_resource(deployment_group)
 
         for server in self._cluster_spec:
             ec2Instance = r.CodeDeployEC2InstanceResource(
@@ -75,7 +75,7 @@ class PipetreeCluster(object):
             cluster.add_resource(ec2Instance)
 
         return cluster
-        
+
     def deploy_cluster(self):
         rl_cluster = self.generate_redleader_cluster()
         rl_cluster.blocking_deploy(verbose=True)
@@ -99,14 +99,14 @@ class PipetreeCluster(object):
             pass
         shutil.copytree(code_deploy_path, working_path)
 
-        # Copy all files from source_path into pipetree_codedeploy_app
+        # Copy all files from source_path into pipetree_codedeploy_app/src/
         for x in os.listdir(source_path):
             if x != "pipetree_codedeploy_app":
                 srcf = os.path.join(source_path, x)
                 if(os.path.isdir(srcf)):
-                    shutil.copytree(srcf, os.path.join(working_path, x))
+                    shutil.copytree(srcf, os.path.join(working_path, "src", x))
                 else:
-                    shutil.copy(srcf, os.path.join(working_path, x))
+                    shutil.copy(srcf, os.path.join(working_path, "src", x))
         print(os.listdir(working_path))
         return working_path
 

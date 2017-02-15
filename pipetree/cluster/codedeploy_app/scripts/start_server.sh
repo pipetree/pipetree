@@ -1,3 +1,2 @@
 #!/bin/bash
-export PYTHONPATH=$PYTHONPATH:/var/pipetree/dependencies/
-python3 /var/pipetree/main.py
+docker run -v /var/pipetree/:/var/pipetree/ -t pipetree-image

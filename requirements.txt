@@ -1,3 +1,4 @@
 click==6.6
 botocore==1.4.87
+boto3
 flask
