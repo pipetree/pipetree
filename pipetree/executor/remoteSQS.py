@@ -53,7 +53,7 @@ class RemoteSQSExecutor(Executor):
                    settings.DYNAMODB_ARTIFACT_TABLE_NAME,
                  dynamodb_stage_run_table_name=
                    settings.DYNAMODB_STAGE_RUN_TABLE_NAME,
-                 loop=None): 
+                 loop=None):
         super().__init__(loop)
 
         try:
@@ -61,6 +61,8 @@ class RemoteSQSExecutor(Executor):
                                           region_name=aws_region)
         except botocore.exceptions.NoCredentialsError:
             self._session = boto3.Session(region_name=aws_region)
+        except botocore.exceptions.ProfileNotFound:
+            self._session = boto3.Session(region_name=self.aws_region)
 
         self._backend = S3ArtifactBackend(
             aws_region=aws_region,
@@ -182,6 +184,8 @@ class RemoteSQSServer(object):
                                           region_name=aws_region)
         except botocore.exceptions.NoCredentialsError:
             self._session = boto3.Session(region_name=aws_region)
+        except botocore.exceptions.ProfileNotFound:
+            self._session = boto3.Session(region_name=self.aws_region)
 
         # Setup SQS Queues
         self._sqs = self._session.resource('sqs')
@@ -231,7 +235,7 @@ class RemoteSQSServer(object):
                 m_dependency_hash = message.message_attributes.\
                     get('dependency_hash').get('StringValue')
                 self._log("Retrieved SQS task message %s / %s" %
-                          (m_config_hash, m_dependency_hash))                
+                          (m_config_hash, m_dependency_hash))
                 task = json.loads(message.body)
                 job_id = self._executor_server.enqueue_job(task)
                 self._log("Enqueued Job ID: %d for stage %s" %

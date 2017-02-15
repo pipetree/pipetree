@@ -439,7 +439,7 @@ class LocalArtifactBackend(ArtifactBackend):
 
 class S3ArtifactBackend(ArtifactBackend):
     """
-    Provide an S3 + DynamoDB storage backend for generated artifacts 
+    Provide an S3 + DynamoDB storage backend for generated artifacts
     and their metadata.
     """
     DEFAULTS = {
@@ -461,6 +461,8 @@ class S3ArtifactBackend(ArtifactBackend):
             self._session = boto3.Session(profile_name=self.aws_profile,
                                     region_name=self.aws_region)
         except botocore.exceptions.NoCredentialsError:
+            self._session = boto3.Session(region_name=self.aws_region)
+        except botocore.exceptions.ProfileNotFound:
             self._session = boto3.Session(region_name=self.aws_region)
 
         self._stage_run_table = None
@@ -504,7 +506,7 @@ class S3ArtifactBackend(ArtifactBackend):
             self.dynamodb_stage_run_table_name,
             stage_run_keys,
             stage_run_fields)
-        
+
         artifact_meta_keys = {
             'artifact_uid': 'HASH',
         }
@@ -517,11 +519,11 @@ class S3ArtifactBackend(ArtifactBackend):
             self.dynamodb_artifact_table_name,
             artifact_meta_keys,
             artifact_meta_fields)
-        
+
     def _dynamo_db_create_table(self, table_name, keys, fields,
                                 write_units=1, read_units=1):
         keySchema = []
-        attributeDefinitions = []        
+        attributeDefinitions = []
         for key in keys:
             keySchema.append({'AttributeName': key,
                               'KeyType': keys[key]})
@@ -587,7 +589,7 @@ class S3ArtifactBackend(ArtifactBackend):
         self._s3_client.upload_file(local_file,
                                     self.s3_bucket_name,
                                     key)
-        
+
         self._write_artifact_meta(artifact)
 
     def _write_artifact_meta(self, artifact):
@@ -614,7 +616,7 @@ class S3ArtifactBackend(ArtifactBackend):
         response = self._stage_run_table.get_item(Key=stage_run_key)
 
         if 'Item' not in response:
-            # Create stage run meta            
+            # Create stage run meta
             self._stage_run_table.put_item(
                 Item={
                     'stage_config_hash': artifact._definition_hash,
@@ -675,7 +677,7 @@ class S3ArtifactBackend(ArtifactBackend):
 
     def s3_artifact_key(self, artifact):
         return self._relative_artifact_path(artifact)
-    
+
     def _get_cached_artifact_payload(self, artifact):
         """
         Returns the payload for a given artifact, assuming that it
@@ -697,7 +699,7 @@ class S3ArtifactBackend(ArtifactBackend):
         if self.enable_local_caching:
             self._localArtifactBackend.log_pipeline_stage_run_complete(
             stage_config, dependency_hash)
-        
+
         # Update dynamo db
         stage_run_key = {
             'stage_config_hash': str(stage_config.hash()),
@@ -720,7 +722,7 @@ class S3ArtifactBackend(ArtifactBackend):
             'dependency_hash': str(dependency_hash)
         }
         response = self._stage_run_table.get_item(Key=stage_run_key)
-        
+
         if 'Item' not in response:
             return STAGE_DOES_NOT_EXIST
         else:

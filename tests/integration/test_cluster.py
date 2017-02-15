@@ -32,7 +32,7 @@ class TestCluster(unittest.TestCase):
             "s3_artifact_bucket_name": "pipetree-test-bucket",
             "sqs_task_queue_name": "pipetree-test-task-queue",
             "sqs_result_queue_name": "pipetree-test-result-queue",
-            "dynamodb_artifact_table_name:": "piepetree-artifact-meta",
+            "dynamodb_artifact_table_name": "piepetree-artifact-meta",
             "dynamodb_stage_run_table_name": "pipetree-stage-run-meta"
         }
         with open(os.path.join("test_docker_app","server_config.json"), 'w') as f:
