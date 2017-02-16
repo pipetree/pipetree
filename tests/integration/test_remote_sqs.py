@@ -65,6 +65,9 @@ class TestRemoteSQS(AWSTestBase):
             "param_a": "string parameter value"
         })
 
+    def tearDown(self):
+        self.fs.__exit__(None, None, None)
+
     def test_create_tasks(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

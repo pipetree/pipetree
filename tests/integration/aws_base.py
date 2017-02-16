@@ -52,7 +52,6 @@ class AWSTestBase(unittest.TestCase):
 
         # Delete buckets and rows in table
         cls.cleanup_test_tables(cls._default_backend)
-        cls.cleanup_test_queues()
 
     @classmethod
     def tearDownClass(cls):

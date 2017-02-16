@@ -29,6 +29,7 @@ class LocalCPUExecutor(Executor):
         print("LocalExecutor: %s" % message)
 
     async def _process_queue(self):
+        self._log('Process queue initialized');
         try:
             while True:
                 task = await self._queue.get()
