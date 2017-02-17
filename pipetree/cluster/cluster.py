@@ -55,11 +55,13 @@ class PipetreeCluster(object):
         deployment_group = r.CodeDeployDeploymentGroupResource(context,
                                                               application_name,
                                                               deployment_group_name)
+        logs = r.CloudWatchLogs(context)
 
         cluster.add_resource(task_queue)
         cluster.add_resource(result_queue)
         cluster.add_resource(s3_bucket)
         cluster.add_resource(deployment_group)
+        cluster.add_resource(logs)
 
         for server in self._cluster_spec:
             ec2Instance = r.CodeDeployEC2InstanceResource(
@@ -67,7 +69,8 @@ class PipetreeCluster(object):
                 deployment_group,
                 permissions=[r.ReadWritePermission(s3_bucket),
                              r.ReadWritePermission(task_queue),
-                             r.ReadWritePermission(result_queue)
+                             r.ReadWritePermission(result_queue),
+                             r.ReadWritePermission(logs)
                 ],
                 storage=server["storage"],
                 instance_type=server["type"]

@@ -3,7 +3,7 @@ import json
 import os.path
 import distutils.dir_util
 import unittest
-
+import test
 import shutil
 import pkg_resources
 from tests import isolated_filesystem
@@ -49,8 +49,10 @@ class TestCluster(unittest.TestCase):
         try:
             #cluster.delete_cluster()
             cluster.deploy_cluster()
+            time.sleep(10)
         except Exception as e:
             print("Cluster may already be deployed: %s" % e)
         print("CWD %s", os.getcwd())
+
         cluster.deploy_application(os.path.join(os.getcwd(), "test_docker_app"))
         #print(os.listdir(os.path.join(os.getcwd(), "test_docker_app", "scripts")))

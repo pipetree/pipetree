@@ -185,3 +185,20 @@ class TestRemoteSQS(AWSTestBase):
         self.assertEqual(1, len(loaded))
         self.assertEqual(loaded[0].item.payload['param_a'],
                          "string parameter value")
+
+    def test_remote_sqs_server(self):
+        #Ensuring we cover the direct .run() codepaths
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        server = RemoteSQSServer(
+            aws_profile=self.test_profile,
+            aws_region=self.test_region,
+            s3_bucket_name=self.test_bucket_name,
+            task_queue_name=self.test_queue_task_name,
+            result_queue_name=self.test_queue_result_name,
+            dynamodb_artifact_table_name=self.test_dynamodb_artifact_table_name,
+            dynamodb_stage_run_table_name=self.test_dynamodb_stage_run_name,
+            loop=loop
+        )
+        server.run()
