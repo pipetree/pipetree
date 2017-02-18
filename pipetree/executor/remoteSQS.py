@@ -33,7 +33,10 @@ from pipetree.executor.server import ExecutorServer
 def get_or_create_queue(sqs_resource, queue_name):
     try:
         return sqs_resource.create_queue(QueueName=queue_name)
-    except:
+    except botocore.exceptions.ClientError as e:
+        if "Exists" not in "%s" % e:
+            raise e
+        print("Queue %s does not exist. Creating." % queue_name)
         return sqs_resource.get_queue_by_name(QueueName=queue_name)
 
 
@@ -77,6 +80,8 @@ class RemoteSQSExecutor(Executor):
         self._result_queue = get_or_create_queue(self._sqs,
                                                  result_queue_name)
 
+        self._log("RemoteSQSExecutor intitialized with task queue %s and result queue %s" %
+              (task_queue_name, result_queue_name))
     def _log(self, message):
         print("RemoteSQSExecutor: %s" % message)
 
@@ -194,6 +199,8 @@ class RemoteSQSServer(object):
         self._result_queue = get_or_create_queue(self._sqs,
                                                  result_queue_name)
 
+        self._log("Initialized with task queue %s and result queue %s" %
+                  (task_queue_name, result_queue_name))
         # Setup executor server
         if loop is None:
             self._loop = asyncio.new_event_loop()

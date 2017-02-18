@@ -187,7 +187,8 @@ class TestRemoteSQS(AWSTestBase):
                          "string parameter value")
 
     def test_remote_sqs_server(self):
-        #Ensuring we cover the direct .run() codepaths
+        #Ensure that we cover the direct .run() codepaths
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 

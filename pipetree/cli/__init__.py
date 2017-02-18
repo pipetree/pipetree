@@ -25,14 +25,14 @@ import click
 import shutil
 import subprocess
 
-from pipetree.cli.utils import _get_config_path, _assert_in_project_dir
+from pipetree.cli.utils import _get_config_path, _assert_in_project_dir, _load_json_file
 from pipetree import __version__ as pipetree_version
 from pipetree.templates import DEFAULT_CONFIG, DEFAULT_HANDLERS,\
-    DEFAULT_PIPELINE_CONFIG
+    DEFAULT_PIPELINE_CONFIG, DEFAULT_CLUSTER_CONFIG
 from pipetree.pipeline import PipelineFactory
 from pipetree.exceptions import PipetreeError
 from pipetree.arbiter import LocalArbiter
-
+from pipetree.cluster import PipetreeCluster
 
 @click.group()
 @click.version_option(version=pipetree_version, message='%(prog)s %(version)s')
@@ -49,7 +49,6 @@ def cli(ctx, project_dir, debug=False):
     ctx.obj['project_dir'] = project_dir
     ctx.obj['debug'] = debug
 
-
 @cli.command()
 @click.argument('project_name', required=True)
 @click.pass_context
@@ -60,15 +59,17 @@ def init(ctx, project_name):
     pipetree_dir = os.path.join(project_name, '.pipetree')
     config = os.path.join(pipetree_dir, 'config.json')
     pipeline_config = os.path.join(project_name, 'pipeline.json')
+    cluster_config = os.path.join(project_name, 'cluster.json')
     os.makedirs(pipetree_dir)
+    os.makedirs(os.path.join(project_name, "src"))
     with open(config, 'w') as f:
         f.write(DEFAULT_CONFIG % project_name)
     with open(pipeline_config, 'w') as f:
         f.write(DEFAULT_PIPELINE_CONFIG % project_name)
-    lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cat_src_dir = os.path.join(lib_dir, 'examples', 'cats')
-    cat_dst_dir = os.path.join(project_name, 'cat_imgs')
-    shutil.copytree(cat_src_dir, cat_dst_dir)
+    with open(cluster_config, 'w') as f:
+        f.write(DEFAULT_CLUSTER_CONFIG % project_name)
+
+    setup_example(project_name)
 
     py_package = os.path.join(project_name, project_name)
     os.makedirs(py_package)
@@ -78,6 +79,11 @@ def init(ctx, project_name):
         f.write(DEFAULT_HANDLERS)
     click.echo("Created new project %s" % project_name)
 
+def setup_example(project_name):
+    lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cat_src_dir = os.path.join(lib_dir, 'examples', 'cats')
+    cat_dst_dir = os.path.join(project_name, 'cat_imgs')
+    shutil.copytree(cat_src_dir, cat_dst_dir)
 
 @cli.group()
 @click.pass_context
@@ -148,6 +154,65 @@ def local(ctx, filepath):
         else:
             print(e)
 
+@cli.group('cluster')
+@click.option('--aws-profile', default=None,
+              help='AWS Profile to use for cluster commands')
+@click.pass_context
+def cluster(ctx, aws_profile):
+    if not ctx.obj:
+        ctx.obj = {}
+    ctx.obj['aws_profile'] = aws_profile
+
+@cluster.command('create')
+@click.option('--cluster-config', default="./cluster.json")
+@click.pass_context
+def cluster_create(ctx, cluster_config):
+    cluster = PipetreeCluster(aws_profile=ctx.obj['aws_profile'])
+    cluster_cfg =  _load_json_file(cluster_config)
+    click.echo("Creating cluster with config:")
+    click.echo(json.dumps(cluster_cfg, indent=4))
+    cluster.load_config(cluster_cfg)
+    cluster.create_cluster()
+
+@cluster.command('delete')
+@click.option('--cluster-config', default="./cluster.json")
+@click.pass_context
+def cluster_delete(ctx, cluster_config):
+    cluster_cfg =  _load_json_file(cluster_config)
+    cluster = PipetreeCluster(aws_profile=ctx.obj['aws_profile'])
+    cluster.load_config(cluster_cfg)
+    click.echo("Deleting cluster %s" % cluster_cfg['cluster_name'])
+    cluster.delete_cluster()
+
+@cluster.command('logs')
+@click.option('--cluster-config', default="./cluster.json")
+@click.option('--n', default=100,
+                help="Maximum number log entries to retrieve per server")
+@click.pass_context
+def cluster_logs(ctx, cluster_config, n):
+    cluster_cfg =  _load_json_file(cluster_config)
+    cluster = PipetreeCluster(aws_profile=ctx.obj['aws_profile'])
+    cluster.load_config(cluster_cfg)
+    logs = cluster.tail_logs(n)
+    for resource in logs:
+        click.echo("Logs for server %s:" % resource)
+        for msg in logs[resource]:
+            print(msg)
+
+@cluster.command('run')
+@click.option('--pipeline-config', default="./pipeline.json")
+@click.option('--cluster-config', default="./cluster.json")
+@click.pass_context
+def cluster_run(ctx, pipeline_config,  cluster_config):
+    pipeline_cfg = _load_json_file(pipeline_config)
+    pipetree_cluster = PipetreeCluster(aws_profile=ctx.obj['aws_profile'])
+    cluster_cfg =  _load_json_file(cluster_config)
+    click.echo("Creating cluster with config:")
+    click.echo(json.dumps(cluster_cfg, indent=4))
+    pipetree_cluster.load_config(cluster_cfg)
+    pipetree_cluster.create_cluster()
+    #pipetree_cluster.deploy_application(os.path.join(os.getcwd()))
+    pipetree_cluster.run_arbiter(os.path.join(ctx.obj['project_dir'], pipeline_config))
 
 def main():
     cli(obj={})

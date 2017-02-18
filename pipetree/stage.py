@@ -201,7 +201,7 @@ class ExecutorPipelineStage(BasePipelineStage):
         self._load_module(config)
 
     def _load_module(self, config):
-        path = os.path.join(*config.execute.split('.')[:-1]) + '.py'
+        path = os.path.join(os.getcwd(), *config.execute.split('.')[:-1]) + '.py'
 
         if not hasattr(self._config, 'directory'):
             cur_path, _ = os.path.split(os.path.realpath(__file__))

@@ -21,6 +21,8 @@
 # SOFTWARE.
 
 import os
+import json
+import os.path
 import click
 
 
@@ -31,5 +33,19 @@ def _get_config_path(ctx):
 
 def _assert_in_project_dir(path):
     if '.pipetree' not in os.listdir(path):
-        click.echo('fatal: not a pipetree directory.')
+        click.echo('Fatal: Not a pipetree directory. Consider running "pipetree init" to start your project. ')
+        raise click.Abort()
+
+def _load_json_file(path):
+    _assert_file_exists(path)
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        click.echo('Fatal: Malformed JSON in file: %s. (%s)' % (path, e))
+        raise click.Abort()
+
+def _assert_file_exists(path):
+    if not os.path.isfile(path):
+        click.echo('Fatal: Required file %s doesn\'t exist.' % path)
         raise click.Abort()

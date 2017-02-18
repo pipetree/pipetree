@@ -23,9 +23,11 @@ import signal
 import asyncio
 import threading
 import time
+import copy
 from pipetree.executor.local import LocalCPUExecutor
+from pipetree.executor.remoteSQS import RemoteSQSExecutor
 from pipetree.pipeline import PipelineFactory
-from pipetree.backend import LocalArtifactBackend
+from pipetree.backend import LocalArtifactBackend, S3ArtifactBackend
 from concurrent.futures import CancelledError
 from pipetree import settings
 from pipetree.utils import attach_config_to_object
@@ -178,25 +180,36 @@ class RemoteSQSArbiter(ArbiterBase):
         "aws_region": settings.AWS_REGION,
         "aws_profile": settings.AWS_PROFILE,
         "artifact_table_name": settings.DYNAMODB_ARTIFACT_TABLE_NAME,
-        "stage_run_table_name": settings.DYNAMODB_STAGE_RUN_TABLE_NAME
+        "stage_run_table_name": settings.DYNAMODB_STAGE_RUN_TABLE_NAME,
+        "task_queue_name": settings.SQS_TASK_QUEUE_NAME,
+        "result_queue_name": settings.SQS_RESULT_QUEUE_NAME,
     }
 
     def __init__(self, filepath, loop=None, **kwargs):
         super().__init__(filepath, loop)
-
         config = copy.copy(self.DEFAULTS)
         config.update(kwargs)
         self._config = kwargs
         attach_config_to_object(self, config)
 
-        self.backend = S3ArtifactBackend(s3_bucket_name=conf.test_bucket_name,
-                                         aws_region=conf.test_region,
-                                         aws_profile=conf.test_profile,
-                                         dynamodb_artifact_table_name=
-                                         conf.test_dynamodb_artifact_table_name,
-                                         dynamodb_stage_run_table_name=
-                                         conf.test_dynamodb_stage_run_name)
+        self._artifact_backend = S3ArtifactBackend(
+            s3_bucket_name=self.s3_bucket_name,
+            aws_region=self.aws_region,
+            aws_profile=self.aws_profile,
+            dynamodb_artifact_table_name=
+            self.artifact_table_name,
+            dynamodb_stage_run_table_name=
+            self.stage_run_table_name)
 
+        self._default_executor = RemoteSQSExecutor(
+            s3_bucket_name=self.s3_bucket_name,
+            aws_region=self.aws_region,
+            aws_profile=self.aws_profile,
+            dynamodb_artifact_table_name=self.artifact_table_name,
+            dynamodb_stage_run_table_name= self.stage_run_table_name,
+            task_queue_name=self.task_queue_name,
+            result_queue_name=self.result_queue_name
+        )
 
     def _log(self, text):
         print("RemoteSQSArbiter: %s" % text)
@@ -213,7 +226,7 @@ class RemoteSQSArbiter(ArbiterBase):
                 self._pipeline.generate_stage(
                     input_stage,
                     self.enqueue,
-                    self._local_cpu_executor,
+                    self._default_executor,
                     self._artifact_backend
                 )))
         future.set_all_associated_futures_created()
@@ -256,6 +269,7 @@ class RemoteSQSArbiter(ArbiterBase):
             self._loop.run_until_complete(asyncio.wait([
                 self._close_after(close_after),
                 self._main(),
+                self._default_executor._process_queue(),
                 self._listen_to_queue()
             ]))
         except CancelledError:

@@ -44,3 +44,9 @@ _default_pipeline_config = OrderedDict([
     })
 ])
 DEFAULT_PIPELINE_CONFIG = json.dumps(_default_pipeline_config, indent=4)
+
+_default_cluster_config = {
+    "cluster_name": "%s",
+    "servers": [{"type": "t2.micro", "storage": "20"}]
+}
+DEFAULT_CLUSTER_CONFIG = json.dumps(_default_cluster_config, indent=4)
