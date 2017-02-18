@@ -21,6 +21,7 @@
 # SOFTWARE.
 import os
 import json
+import time
 import click
 import shutil
 import subprocess
@@ -211,7 +212,7 @@ def cluster_run(ctx, pipeline_config,  cluster_config):
     click.echo(json.dumps(cluster_cfg, indent=4))
     pipetree_cluster.load_config(cluster_cfg)
     pipetree_cluster.create_cluster()
-    #pipetree_cluster.deploy_application(os.path.join(os.getcwd()))
+    pipetree_cluster.deploy_application(os.path.join(os.getcwd()))
     pipetree_cluster.run_arbiter(os.path.join(ctx.obj['project_dir'], pipeline_config))
 
 def main():

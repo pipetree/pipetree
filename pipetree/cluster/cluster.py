@@ -3,6 +3,7 @@ import datetime
 import shutil
 import os.path
 import json
+import time
 import os
 
 from redleader.managers import CodeDeployManager
@@ -130,9 +131,14 @@ class PipetreeCluster(object):
 
     def create_cluster(self):
         rl_cluster = self.generate_redleader_cluster()
+        #print(json.dumps(rl_cluster.cloud_formation_template(), indent=4))
         self.ensure_log_group_exists("pipetreeClusterLogs")
         try:
             rl_cluster.blocking_deploy(verbose=True)
+            # Resources often aren't available immediately after
+            # cloud formation stack successfully gets created
+            time.sleep(10)
+
         except botocore.exceptions.ClientError as e:
             if "AlreadyExistsException" in "%s" % e:
                 print("Cluster already exists.")

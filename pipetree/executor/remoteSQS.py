@@ -116,10 +116,13 @@ class RemoteSQSExecutor(Executor):
         task.all_artifacts_generated()
 
     async def _await_result(self, config_hash, dependency_hash):
+        i = 0
         while True:
             await asyncio.sleep(2.0)
-            self._log("Awaiting SQS Result Message for %s / %s" %
-                      (config_hash, dependency_hash))
+            if i % 30 == 0:
+                self._log("Awaiting SQS Result Message for %s / %s" %
+                          (config_hash, dependency_hash))
+            i += 1
             for message in self._result_queue.receive_messages(
                     MessageAttributeNames=['stage_config_hash',
                                            'dependency_hash']):
