@@ -1,3 +1,4 @@
+import os
 import os.path
 import json
 from pipetree.executor.remoteSQS import RemoteSQSServer
@@ -5,6 +6,7 @@ from pipetree.executor.remoteSQS import RemoteSQSServer
 class RemoteServer(object):
     def __init__(self, path):
         self._path = path
+        os.chdir(path)
 
     def load_config(self):
         with open(os.path.join(self._path, "server_config.json")) as f:
