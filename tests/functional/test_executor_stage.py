@@ -28,7 +28,7 @@ class TestExecutorPipelineStage(unittest.TestCase):
     def setUp(self):
         self.data = {
             "inputs": [],
-            "execute": "tests.functional.module.executor_function.function",
+            "execute": "module.executor_function.function",
             "type": "ExecutorPipelineStage"
         }
         self.config = PipelineStageConfig('WriteBytes', self.data)

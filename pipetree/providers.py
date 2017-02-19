@@ -155,4 +155,7 @@ class LocalDirectoryArtifactProvider(ArtifactProvider):
                 art = Artifact(self._stage_config)
                 art.item.payload = f.read()
                 return art
-        return artifact_path
+        else:
+            art = Artifact(self._stage_config)
+            art.item.payload = artifact_path
+            return art

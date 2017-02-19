@@ -185,11 +185,11 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
     def test_load_file_names(self):
         provider = LocalDirectoryArtifactProvider(path=self.dirname,
                                                   stage_config=self.stage_config)
-        for loaded_name, name in zip(provider.yield_artifacts(),
+        for art, name in zip(provider.yield_artifacts(),
                                      self.filename):
-            self.assertEqual(loaded_name, os.path.join(os.getcwd(),
-                                                       self.dirname,
-                                                       name))
+            self.assertEqual(art.item.payload, os.path.join(os.getcwd(),
+                                                            self.dirname,
+                                                            name))
 
     def test_load_multiple_file_contents(self):
         provider = LocalDirectoryArtifactProvider(path=self.dirname,
