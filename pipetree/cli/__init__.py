@@ -141,13 +141,13 @@ def verify_pipeline_config(ctx, config):
 
 
 @cli.command('local')
-@click.argument('filepath', required=True)
+@click.option('--pipeline-config', default="./pipeline.json")
 @click.pass_context
-def local(ctx, filepath):
+def local(ctx, pipeline_config="./pipeline.json"):
     """Runs a local instance of the pipetree arbiter
     loading the pipeline config specified at FILEPATH"""
     try:
-        arbiter = LocalArbiter(filepath)
+        arbiter = LocalArbiter(pipeline_config)
         arbiter.run_event_loop()
     except Exception as e:
         if ctx.obj['debug']:
@@ -215,7 +215,7 @@ def cluster_run(ctx, pipeline_config,  cluster_config):
     (dId, status) = pipetree_cluster.deploy_application(os.path.join(os.getcwd()))
     if status != "Succeeded":
         print("Deployment failed with status '%s'" % status)
-    return
+        return
     pipetree_cluster.run_arbiter(os.path.join(ctx.obj['project_dir'], pipeline_config))
 
 def main():

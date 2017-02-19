@@ -141,7 +141,7 @@ class LocalArtifactBackend(ArtifactBackend):
     artifacts, this shouldn't impact performance tremendously at the moment.
     """
     DEFAULTS = {
-        "path": "~/.pipetree/local_cache/",
+        "path": "./pipetree/local_cache/",
         "metadata_file": "pipeline.meta"
     }
 
@@ -194,7 +194,14 @@ class LocalArtifactBackend(ArtifactBackend):
             with open(os.path.join(self.path,
                                    self._relative_artifact_path(artifact)),
                       'w') as f:
-                f.write(artifact.serialize_payload())
+                if artifact._serialization_type == "contentstream":
+                    # TODO, write in chunks
+                    artifact.item.payload.open()
+                    x = artifact.item.payload.read()
+                    f.write(x)
+                    artifact.item.payload.close()
+                else:
+                    f.write(artifact.serialize_payload())
 
         self._write_artifact_meta(artifact)
         self._record_pipeline_stage_run_artifact(artifact)
@@ -278,6 +285,10 @@ class LocalArtifactBackend(ArtifactBackend):
         Returns the payload for a given artifact, assuming that it
         has already been produced and is cached.
         """
+        if artifact._serialization_type == "bytestream":
+            return open(os.path.join(self.path,
+                               self._relative_artifact_path(artifact)),
+                  'r')
         with open(os.path.join(self.path,
                                self._relative_artifact_path(artifact)),
                   'r') as f:
@@ -687,6 +698,8 @@ class S3ArtifactBackend(ArtifactBackend):
             Bucket= self.s3_bucket_name,
             Key= self.s3_artifact_key(artifact)
         )
+        if artifact._serialization_type == "bytestream":
+            return obj['Body']
         return obj['Body'].read()
 
     def log_pipeline_stage_run_complete(self, stage_config,

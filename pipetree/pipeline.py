@@ -162,7 +162,7 @@ class Pipeline(object):
                 result.append(art)
             else:
                 self._log("Yielding fresh artifact for stage %s" % stage_name)
-                self._log("\tPayload: %s " % str(art.item.payload)[0:50])
+                #self._log("\tPayload: %s " % str(art.item.payload)[0:50])
                 art = self._ensure_artifact_meta(art, dependency_hash)
                 backend.save_artifact(art)
                 result.append(art)

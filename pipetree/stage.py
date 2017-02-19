@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
+import time
 import inspect
 import importlib.util
 from pipetree.providers import LocalDirectoryArtifactProvider,\
@@ -193,6 +194,17 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
 
 
 class ExecutorPipelineStage(BasePipelineStage):
+    """
+    Pipeline stage for executing user-supplied functions.
+
+    Arguments are passed to the function in the following way:
+    fn(stage_A_name={"itemTypeA": [Artifact0, Artifact1, ...], "itemTypeB": [...]},
+       stage_B_name={...})
+
+    If a stage only produces items without a type, then the list of output artifacts
+    will be passed as a simple array. I.e) simple_stage=[Artifact0, Artifact1, Artifact2]
+
+    """
     def __init__(self, config):
         super().__init__(config)
         self._module = None
@@ -228,8 +240,22 @@ class ExecutorPipelineStage(BasePipelineStage):
     def _source_artifact(self, artifact_name):
         pass
 
-    def yield_artifacts(self, input_artifacts=None):
-        yield self._fn()
+    def yield_artifacts(self, input_artifacts=[]):
+        kwargs = {}
+        for artifact in input_artifacts:
+            if artifact._pipeline_stage not in kwargs:
+                kwargs[artifact._pipeline_stage] = {}
+            if artifact.item.type not in kwargs[artifact._pipeline_stage]:
+                kwargs[artifact._pipeline_stage][artifact.item.type] = []
+            kwargs[artifact._pipeline_stage][artifact.item.type].append(artifact)
+        keys = list(kwargs.keys())
+        if len(keys) is 1 and list(kwargs[keys[0]].keys())[0] is None:
+            kwargs[keys[0]] = kwargs[keys[0]][None]
+
+        for item in self._fn(**kwargs):
+            yield Artifact(self._config,
+                                item=item,
+                                serialization_type=item.payload_type)
 
     def _validate_config(self, config):
         if not hasattr(config, 'inputs'):

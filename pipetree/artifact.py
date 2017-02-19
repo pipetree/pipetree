@@ -85,7 +85,7 @@ class Artifact(object):
         Populate relevant artifact fields given stage definition dict
         """
         self._definition_hash = pipeline_stage_config.hash()
-        
+
         # We'll hash the stage definition to check if it's changed
         ignore = ['parent_class']
         props = {k: getattr(pipeline_stage_config, k)
@@ -155,7 +155,7 @@ class Artifact(object):
             return json.dumps(self.item.payload)
         if self._serialization_type == "string":
             return self.item.payload
-        if self._serialization_type == "bytestream":
+        if self._serialization_type == "contentstream":
             raise NotImplementedError
         raise ArtifactUnknownSerializationTypeError(
             stage=self._stage,
@@ -176,8 +176,9 @@ class Artifact(object):
             self.item.payload = json.loads(s)
         elif self._serialization_type == "string":
             self.item.payload = s
-        elif self._serialization_type == "bytestream":
-            raise NotImplementedError
+        elif self._serialization_type == "contentstream":
+            #ContentStream object
+            self.item.payload = payload
         else:
             raise ArtifactUnknownSerializationTypeError(
                 stage=self._stage,
@@ -211,8 +212,13 @@ class Artifact(object):
             dependency_hash
 
 class Item(object):
-    def __init__(self, payload, meta={}, tags=[], type=None):
+    def __init__(self, payload="",
+                 payload_type="string",
+                 meta={},
+                 tags=[],
+                 type=None):
         self.payload = payload
+        self.payload_type = payload_type
         self.meta = meta
         self.tags = tags
         self.type = type

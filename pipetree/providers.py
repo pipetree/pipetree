@@ -110,17 +110,14 @@ class LocalFileArtifactProvider(ArtifactProvider):
     def _yield_artifact(self):
         artifact_path = os.path.join(os.getcwd(), self._path)
         content = ""
-        with open(artifact_path, 'r') as f:
-            content = f.read()
-
-        art = Artifact(self._stage_config)
-        art.item.payload = content
+        art = Artifact(self._stage_config, serialization_type="contentstream")
+        art.item.payload = FileContentStream(artifact_path)
         return art
 
 
 class LocalDirectoryArtifactProvider(ArtifactProvider):
     DEFAULTS = {
-        'read_content': False
+        'read_content': True
     }
 
     def __init__(self, path='', stage_config=None, **kwargs):
@@ -151,11 +148,38 @@ class LocalDirectoryArtifactProvider(ArtifactProvider):
                                      self._root,
                                      artifact_name)
         if self.read_content:
-            with open(artifact_path, 'rb') as f:
-                art = Artifact(self._stage_config)
-                art.item.payload = f.read()
-                return art
+            art = Artifact(self._stage_config, serialization_type="contentstream")
+            art.item.payload = FileContentStream(artifact_path)
+            return art
         else:
             art = Artifact(self._stage_config)
             art.item.payload = artifact_path
             return art
+
+
+class ContentStream(object):
+    def open():
+        raise NotImplementedError
+
+    def close():
+        raise NotImplementedError
+
+    def read(number_bytes):
+        raise NotImplementedError
+
+
+class FileContentStream(object):
+    def __init__(self, filepath):
+        self._filepath = filepath
+        self._file = None
+
+    def open(self):
+        self._file = open(self._filepath, 'r')
+
+    def read(self, n=None):
+        if n is not None:
+            return self._file.read(n)
+        return self._file.read()
+
+    def close(self):
+        self._file.close()

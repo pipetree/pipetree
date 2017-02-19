@@ -132,8 +132,10 @@ class TestLocalFileArtifactProvider(unittest.TestCase):
             stage_config=self.stage_config,
             read_content=True)
         art = provider._yield_artifact()
-        self.assertEqual(art.item.payload,
+        art.item.payload.open()
+        self.assertEqual(art.item.payload.read(),
                          self.filedatas[0])
+        art.item.payload.close()
 
 
 class TestLocalDirectoryArtifactProvider(unittest.TestCase):
@@ -161,7 +163,9 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
     def test_missing_config(self):
         try:
             LocalDirectoryArtifactProvider(path='folder/',
-                                           stage_config=None)
+                                           stage_config=None,
+                                           read_content=False
+            )
             self.assertEqual(0, "Provider creation should have failed")
         except ArtifactProviderMissingParameterError:
             pass
@@ -169,7 +173,9 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
     def test_load_nonexistant_dir(self):
         try:
             LocalDirectoryArtifactProvider(path='folder/',
-                                           stage_config=self.stage_config)
+                                           stage_config=self.stage_config,
+                                           read_content=False
+            )
             self.assertTrue(False, 'This was supposed to raise an exception')
         except ArtifactSourceDoesNotExistError:
             pass
@@ -179,12 +185,15 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
                                                   stage_config=self.stage_config,
                                                   read_content=True)
         art = provider._yield_artifact(self.filename[0])
-        self.assertEqual(art.item.payload.decode('utf-8'),
-                         self.filedatas[0])
+        art.item.payload.open()
+        self.assertEqual(art.item.payload.read(), self.filedatas[0])
+        art.item.payload.close()
 
     def test_load_file_names(self):
         provider = LocalDirectoryArtifactProvider(path=self.dirname,
-                                                  stage_config=self.stage_config)
+                                                  stage_config=self.stage_config,
+                                                  read_content=False
+        )
         for art, name in zip(provider.yield_artifacts(),
                                      self.filename):
             self.assertEqual(art.item.payload, os.path.join(os.getcwd(),
@@ -198,4 +207,6 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
         for art, data in zip(provider.yield_artifacts(),
                              self.filedatas):
             art_data = art.item.payload
-            self.assertEqual(art_data.decode('utf-8'), data)
+            art.item.payload.open()
+            self.assertEqual(art.item.payload.read(), data)
+            art.item.payload.close()

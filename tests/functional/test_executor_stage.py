@@ -26,19 +26,54 @@ from pipetree.stage import PipelineStageFactory
 
 class TestExecutorPipelineStage(unittest.TestCase):
     def setUp(self):
-        self.data = {
-            "inputs": [],
-            "execute": "module.executor_function.function",
-            "type": "ExecutorPipelineStage"
+        self.test_array = ['foo', 'bar', 'baz']
+        self.stage_a = {
+            'inputs': [],
+            'type': 'ParameterPipelineStage',
+            'parameter_a': self.test_array
         }
-        self.config = PipelineStageConfig('WriteBytes', self.data)
+
+        self.stage_b = {
+            'inputs': ['StageA'],
+            'execute': 'module.executor_function.stageB',
+            'type': 'ExecutorPipelineStage'
+        }
+
+        self.stage_c = {
+            'inputs': ['StageB'],
+            'execute': 'module.executor_function.stageC',
+            'type': 'ExecutorPipelineStage'
+        }
+
+        self.stage_a_config = PipelineStageConfig('StageA', self.stage_a)
+        self.stage_b_config = PipelineStageConfig('StageB', self.stage_b)
+        self.stage_c_config = PipelineStageConfig('StageC', self.stage_c)
         self.factory = PipelineStageFactory()
 
     def test_init_executor(self):
-        stage = self.factory.create_pipeline_stage(self.config)
+        stage_a = self.factory.create_pipeline_stage(self.stage_a_config)
+        stage_b = self.factory.create_pipeline_stage(self.stage_b_config)
+        stage_c = self.factory.create_pipeline_stage(self.stage_c_config)
         res = []
 
-        for x in stage.yield_artifacts():
-            res = list(x)
+        stage_a_out = []
+        for x in stage_a.yield_artifacts():
+            print(x.item.payload)
+            stage_a_out.append(x)
 
-        self.assertEqual(res, ['foo', 'bar', 'baz'])
+        stage_b_out = []
+        for x in stage_b.yield_artifacts(stage_a_out):
+            print(x.item.payload)
+            stage_b_out.append(x)
+
+        stage_c_out = []
+        for x in stage_c.yield_artifacts(stage_b_out):
+            print(x.item.payload)
+            stage_c_out.append(x)
+
+        res = None
+        for x in stage_c_out:
+            print(x.item.payload)
+            res = x
+
+        self.assertEqual(res, "foo, bar, baz information_value5.0")
