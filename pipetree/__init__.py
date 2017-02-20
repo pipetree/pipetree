@@ -1,6 +1,7 @@
 from pipetree.stage import LocalFilePipelineStage,\
     LocalDirectoryPipelineStage, ExecutorPipelineStage,\
-    ParameterPipelineStage, IdentityPipelineStage
+    ParameterPipelineStage, IdentityPipelineStage, \
+    GridSearchPipelineStage
 
 __version__ = '0.1.0'
 
@@ -9,6 +10,7 @@ STAGES = {
     "LocalFilePipelineStage": LocalFilePipelineStage,
     "ExecutorPipelineStage": ExecutorPipelineStage,
     "ParameterPipelineStage": ParameterPipelineStage,
+    "GridSearchPipelineStage": GridSearchPipelineStage,
     "IdentityPipelineStage": IdentityPipelineStage
 }
 

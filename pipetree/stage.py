@@ -25,7 +25,8 @@ import inspect
 import importlib.util
 from pipetree.providers import LocalDirectoryArtifactProvider,\
     LocalFileArtifactProvider,\
-    ParameterArtifactProvider
+    ParameterArtifactProvider, \
+    GridSearchArtifactProvider
 from pipetree.exceptions import InvalidConfigurationFileError
 from pipetree.artifact import Artifact, Item
 
@@ -65,7 +66,7 @@ class ParameterPipelineStage(BasePipelineStage):
 
     def params_from_config(self, config):
         """ Extract parameters from a config"""
-        exclude = ['type', 'raw_config', 'parent_class']
+        exclude = ['type', 'raw_config', 'parent_class', 'name']
         params = {}
         for prop in dir(config):
             value = getattr(config, prop)
@@ -90,7 +91,7 @@ class ParameterPipelineStage(BasePipelineStage):
         """
         return True
 
-class GridSearchParameterStage(BasePipelineStage):
+class GridSearchPipelineStage(BasePipelineStage):
     """A pipeline stage for gridsearch"""
 
     def __init__(self, config):
@@ -103,7 +104,7 @@ class GridSearchParameterStage(BasePipelineStage):
 
     def params_from_config(self, config):
         """ Extract parameters from a config"""
-        exclude = ['type', 'raw_config', 'parent_class']
+        exclude = ['type', 'raw_config', 'parent_class', 'name']
         params = {}
         for prop in dir(config):
             value = getattr(config, prop)
@@ -296,13 +297,19 @@ class ExecutorPipelineStage(BasePipelineStage):
             else:
                 kwargs[artifact._pipeline_stage][artifact.item.type].append(artifact.item)
         keys = list(kwargs.keys())
-        if len(keys) is 1 and list(kwargs[keys[0]].keys())[0] is None:
-            kwargs[keys[0]] = kwargs[keys[0]][None]
+
+        # If there are no item types produced by previous stages, present
+        # the items as a list instead of {None: [...]}
+        for key in keys:
+            if list(kwargs[key].keys())[0] is None:
+                kwargs[key] = kwargs[key][None]
 
         for item in self._fn(**kwargs):
-            yield Artifact(self._config,
-                                item=item,
-                                serialization_type=item.payload_type)
+            art = Artifact(self._config,
+                     item=item,
+                     serialization_type=item.payload_type)
+            art._specific_hash = art.specific_hash_from_payload()
+            yield art
 
     def _validate_config(self, config):
         if not hasattr(config, 'inputs'):

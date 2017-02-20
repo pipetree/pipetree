@@ -23,6 +23,7 @@ import signal
 import asyncio
 import threading
 import time
+import json
 from concurrent.futures import CancelledError
 from pipetree.artifact import Artifact
 from pipetree.stage import PipelineStageFactory
@@ -89,11 +90,20 @@ class ExecutorServer(object):
         # Load input artifact payloads from cache
         loaded_artifacts = []
         for artifact in job['artifacts']:
-            art_obj = Artifact(stage._config)
-            art_obj.meta_from_dict(artifact)
+            in_config = PipelineStageConfig(
+                artifact['meta']['pipeline_stage'],
+                artifact['stage_config']
+            )
+            in_stage = pf.create_pipeline_stage(in_config)
+            art_obj = Artifact(in_config)
+            art_obj.meta_from_dict(artifact['meta'])
             loaded = self._backend.load_artifact(art_obj)
             if loaded is None:
+                self._log(json.dumps(art_obj.meta_to_dict(), indent=4))
+                self._log(art_obj.get_uid())
                 self._log("Could not find payload for artifact")
+                self._log(job['stage_name'])
+                self._log(job['stage_config'])
                 raise Exception("Could not find payload for artifact")
             loaded_artifacts.append(loaded)
 

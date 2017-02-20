@@ -89,7 +89,7 @@ class TestLocalArtifactBackend(unittest.TestCase):
         artifact.item = Item(payload="SHRIM")
         backend.save_artifact(artifact)
 
-        loaded_artifact = backend._find_cached_artifact(artifact)
+        loaded_artifact = backend._find_cached_artifact(self.stage_config, artifact.item.type, artifact.get_uid())
 
         # Ensure that we found the artifact
         self.assertNotEqual(None, loaded_artifact)
@@ -130,14 +130,14 @@ class TestLocalArtifactBackend(unittest.TestCase):
         backend.log_pipeline_stage_run_complete(
             self.stage_config,
             artifact._dependency_hash)
-        
+
         arts = backend.find_pipeline_stage_run_artifacts(
             self.stage_config,
             artifact._dependency_hash)
         self.assertEqual(len(arts), 1)
         self.assertEqual(arts[0].get_uid(), artifact.get_uid())
 
-    def test_pipeline_stage_status(self):        
+    def test_pipeline_stage_status(self):
         backend = LocalArtifactBackend(config={"path": "./test_storage/"})
         artifact = Artifact(self.stage_config)
         payload = "SHRIM"

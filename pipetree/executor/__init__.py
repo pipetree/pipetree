@@ -1,3 +1,3 @@
 
-from .executor import Executor
+from .executor import Executor, ExecutorTask
 from .local import LocalCPUExecutor

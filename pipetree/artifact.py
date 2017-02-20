@@ -65,12 +65,15 @@ class Artifact(object):
         # Set when an artifact is loaded from cache rather than generated freshly
         self._loaded_from_cache = False
 
+        self._fanout_parameters = {}
+
         self._serialization_type = serialization_type
 
         # Listing of meta properties for serialization purposes
         self._meta_properties = [
             "antecedents", "creation_time", "definition_hash",
             "specific_hash", "dependency_hash",
+            "fanout_parameters",
             "pipeline_stage", "serialization_type"]
 
         # Listing of item properties for serialization purposes
@@ -152,7 +155,7 @@ class Artifact(object):
 
     def serialize_payload(self):
         if self._serialization_type == "json":
-            return json.dumps(self.item.payload)
+            return json.dumps(self.item.payload, sort_keys=True)
         if self._serialization_type == "string":
             return self.item.payload
         # binarystream and stringstream serialization should
@@ -190,6 +193,20 @@ class Artifact(object):
                 stage=self._stage,
                 stype=self._serialization_type)
 
+    def specific_hash_from_payload(self):
+        """
+        Allows artifact producers to generate a specific hash
+        from the artifact's payload
+        """
+        h = hashlib.md5()
+        if self._serialization_type in ["stringstream", "bytestream"]:
+            self.item.payload.open()
+            h.update(self.item.payload.read())
+            self.item.payload.close()
+        else:
+            h.update(self.serialize_payload().encode('utf-8'))
+        return str(h.hexdigest())
+
     @staticmethod
     def dependency_hash(input_artifacts):
         """
@@ -213,13 +230,13 @@ class Artifact(object):
         dependency_hash = ""
         if _dependency_hash is not None:
             dependency_hash = _dependency_hash
-        return _definition_hash + "_" + \
-            specific_hash + "_" + \
-            dependency_hash
+        return "%s_%s_%s" % (_definition_hash,
+                             specific_hash,
+                             dependency_hash)
 
 class Item(object):
     def __init__(self, payload="",
-                 payload_type="string",
+                 payload_type="json",
                  meta={},
                  tags=[],
                  type=None):

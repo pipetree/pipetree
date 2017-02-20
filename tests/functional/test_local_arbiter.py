@@ -75,11 +75,9 @@ class TestLocalArbiter(unittest.TestCase):
             print("RTE")
             pass
         final_artifacts = arbiter.await_run_complete()
-        print(final_artifacts[0].item.payload)
+        print(final_artifacts[0][0].item.payload)
         self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
-
-    def test_fanout(self):
+        self.assertEqual(final_artifacts[0][0]._loaded_from_cache, False)
 
     def test_pipeline_caching(self):
         arbiter = LocalArbiter(os.path.join(".", self.config_filename))
@@ -89,7 +87,7 @@ class TestLocalArbiter(unittest.TestCase):
             # Event loop is always closed
             pass
 
-        final_artifacts = arbiter.await_run_complete()
+        final_artifacts = arbiter.await_run_complete()[0]
         for artifact in final_artifacts:
             print(artifact.item.payload)
         self.assertEqual(len(final_artifacts), 1)
@@ -107,6 +105,6 @@ class TestLocalArbiter(unittest.TestCase):
             # Event loop is always closed
             pass
 
-        final_artifacts = arbiter.await_run_complete()
+        final_artifacts = arbiter.await_run_complete()[0]
         self.assertEqual(len(final_artifacts), 1)
         self.assertEqual(final_artifacts[0]._loaded_from_cache, True)

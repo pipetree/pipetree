@@ -22,6 +22,8 @@
 import time
 import asyncio
 import hashlib
+import itertools
+import json
 from collections import OrderedDict
 from pipetree.config import PipelineStageConfig
 from pipetree.stage import PipelineStageFactory
@@ -203,12 +205,58 @@ class Pipeline(object):
             self._log("All (%d) inputs acquired for stage %s" %
                   (len(input_artifacts), stage_name))
 
+            fanout_parameters = []
+
+            grouped = self.group_fanout_parameters(input_artifacts)
+            runs = []
+            for group in grouped:
             # Run the stage using collected input artifacts
-            run = await self._run_stage(stage_name,
-                                        input_artifacts,
-                                        executor,
-                                        backend)
-            return run
+                runs.append(await self._run_stage(stage_name,
+                                                  group,
+                                                  executor,
+                                                  backend))
+            return runs
+
+    def group_fanout_parameters(self, input_artifacts):
+        fanout_parameters = {}
+        artifacts_without_fanout = []
+        for artifact in input_artifacts:
+            afp = artifact._fanout_parameters
+            if len(list(afp.keys())) == 0:
+                artifacts_without_fanout.append(artifact)
+            for param in afp:
+                if param not in fanout_parameters:
+                    fanout_parameters[param] = {}
+                if afp[param] not in fanout_parameters[param]:
+                    fanout_parameters[param][afp[param]] = []
+                fanout_parameters[param][afp[param]].append(artifact)
+
+        # Create a cartesian product of unqiue values for each fanout parameter
+        ordered = OrderedDict(fanout_parameters)
+        ordered_keys = list(ordered.keys())
+        products = list(itertools.product( *list(ordered.values()) ))
+        self._log("Found fanout parameters: ")
+        self._log(products)
+
+        result = []
+        for product in products:
+            matching_artifacts = []
+
+            for input_artifact in input_artifacts:
+                # Find artifacts whose fanout parameters match ours
+                conflicting_values = False
+
+                for idx in range(len(product)):
+                    param = ordered_keys[idx]
+                    param_value = product[idx]
+                    if param in input_artifact._fanout_parameters:
+                        if input_artifact._fanout_parameters[param] != param_value:
+                            conflicting_values = False
+                            break
+                if not conflicting_values:
+                    matching_artifacts.append(input_artifact)
+            result.append(matching_artifacts)
+        return result
 
     @property
     def stages(self):

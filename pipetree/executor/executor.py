@@ -36,11 +36,21 @@ class ExecutorTask(object):
         self._loop = loop
         self._queue = asyncio.Queue(loop=self._loop)
 
+    @staticmethod
+    def wrap_input_artifact(artifact):
+        """
+        Wraps an artifact meta with its stage config
+        """
+        return {
+            "meta": artifact.meta_to_dict(),
+            "stage_config": artifact._config.raw_config
+        }
+
     def serialize(self):
         return json.dumps({
             "stage_name": self._stage._config.name,
             "stage_config": self._stage._config.raw_config,
-            "artifacts": list(map(lambda x: x.meta_to_dict(),
+            "artifacts": list(map(ExecutorTask.wrap_input_artifact,
                                   self._input_artifacts))
         })
 

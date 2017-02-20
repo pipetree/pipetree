@@ -25,7 +25,7 @@ import time
 import os
 from collections import OrderedDict
 from pipetree.executor.server import ExecutorServer
-from pipetree.executor import LocalCPUExecutor
+from pipetree.executor import LocalCPUExecutor, ExecutorTask
 from pipetree.backend import LocalArtifactBackend
 from tests import isolated_filesystem
 from pipetree.arbiter import LocalArbiter
@@ -82,11 +82,12 @@ class TestServer(unittest.TestCase):
         loop = asyncio.set_event_loop(asyncio.new_event_loop())
         executor = LocalCPUExecutor(loop=loop)
         server = ExecutorServer(backend, executor)
-        job_id = server.enqueue_job({"stage_name": "StageB",
-                            "stage_config": self.generate_pipeline_config()["StageB"],
-                            "artifacts":  list(map(lambda x: x.meta_to_dict(), arts))
+        job_id = server.enqueue_job({
+            "stage_name": "StageB",
+            "stage_config": self.generate_pipeline_config()["StageB"],
+            "artifacts":  list(map(ExecutorTask.wrap_input_artifact, arts))
         })
-        server.run_event_loop(5)
+        server.run_event_loop(3)
         job_result = server.retrieve_job(job_id)
         self.assertEqual(len(job_result['artifacts']), 1)
 

@@ -49,6 +49,12 @@ class MissingPipelineAttributeError(PipetreeError):
     """
     message = 'No {attribute} attribute found for pipeline stage {stage_name}'
 
+class PipelineRunComplete(PipetreeError):
+    """
+    Raised when an arbiter finishes a pipeline run.
+    """
+    message = 'Pipeline run complete'
+
 
 class IncorrectPipelineStageNameError(PipetreeError):
     message = 'Pipeline stage type must be one of {types}'
@@ -74,6 +80,9 @@ class InvalidArtifactMetadataError(PipetreeError):
 class ArtifactProviderFailedError(PipetreeError):
     message = 'Artifact Provider {provider} failed to produce an artifact:'\
               + ' {error}'
+
+class ArtifactNotFoundError(PipetreeError):
+    message = 'Artifact {artifact} not found'
 
 
 class ArtifactMissingPayloadError(PipetreeError):

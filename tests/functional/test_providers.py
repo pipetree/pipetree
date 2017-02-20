@@ -26,7 +26,9 @@ from tests import isolated_filesystem
 from pipetree.config import PipelineStageConfig
 from pipetree.providers import LocalDirectoryArtifactProvider,\
     LocalFileArtifactProvider,\
-    ParameterArtifactProvider
+    ParameterArtifactProvider, \
+    GridSearchArtifactProvider
+
 from pipetree.exceptions import ArtifactSourceDoesNotExistError,\
     InvalidConfigurationFileError,\
     ArtifactProviderMissingParameterError,\
@@ -77,7 +79,56 @@ class TestParameterArtifactProvider(unittest.TestCase):
                     provider = self.__class__.__name__,
                     error="Missing parameter "+k
                 )
-    pass
+
+class TestGridSearchArtifactProvider(unittest.TestCase):
+    def setUp(self):
+        self.stage_config = PipelineStageConfig("test_stage_name", {
+            "type": "GridSearchPipelineStage"
+        })
+        self.test_parameters = {"int_param": [1, 2], "str_param": ["strA", "strB"]}
+
+    def tearDown(self):
+        pass
+
+    def test_missing_config(self):
+        try:
+            provider = GridSearchArtifactProvider(
+                stage_config=None,
+                parameters={})
+            self.assertEqual(provider, "Provider creation should have failed")
+        except ArtifactProviderMissingParameterError:
+            pass
+
+    def test_missing_parameters(self):
+        try:
+            provider = GridSearchArtifactProvider(
+                stage_config=self.stage_config,
+                parameters={})
+            self.assertEqual(provider, "Provider creation should have failed")
+        except ArtifactProviderMissingParameterError:
+            pass
+
+    def test_yield_artifacts(self):
+        provider = GridSearchArtifactProvider(
+            stage_config=self.stage_config,
+            parameters=self.test_parameters)
+
+        arts = []
+        for art in provider.yield_artifacts():
+            arts.append(art)
+
+        self.assertEqual(4, len(arts))
+        for art in arts:
+            yielded_params = art.item.payload
+            for k in self.test_parameters:
+                if k not in yielded_params:
+                    raise ArtifactProviderFailedError(
+                        provider = self.__class__.__name__,
+                        error="Missing parameter "+k
+                    )
+                if k not in art._fanout_parameters:
+                    self.assertEqual(0, "Missing key %s in fanout parameters" % k)
+
 
 class TestLocalFileArtifactProvider(unittest.TestCase):
     def setUp(self):
@@ -104,9 +155,11 @@ class TestLocalFileArtifactProvider(unittest.TestCase):
     def test_missing_config(self):
         try:
             LocalFileArtifactProvider(path='folder/shim.sham',
-                                           stage_config=None)
+                                      stage_config=None)
             self.assertEqual(0, "Provider creation should have failed")
         except ArtifactProviderMissingParameterError:
+            pass
+        except AttributeError:
             pass
 
     def test_load_nonexistant_file(self):
@@ -180,6 +233,8 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
             )
             self.assertEqual(0, "Provider creation should have failed")
         except ArtifactProviderMissingParameterError:
+            pass
+        except AttributeError:
             pass
 
     def test_load_nonexistant_dir(self):

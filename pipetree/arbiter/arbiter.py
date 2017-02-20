@@ -31,7 +31,7 @@ from pipetree.backend import LocalArtifactBackend, S3ArtifactBackend
 from concurrent.futures import CancelledError
 from pipetree import settings
 from pipetree.utils import attach_config_to_object
-
+import pipetree.exceptions as exceptions
 
 class ArbiterBase(object):
     def __init__(self, filepath, loop=None):
@@ -61,6 +61,10 @@ class ArbiterBase(object):
             time.sleep(0.25)
         return self._final_artifacts
 
+    def _complete_run(self):
+        self.shutdown()
+        raise exceptions.PipelineRunComplete
+
     def reset(self):
         """
         Reset accumulated internal state
@@ -87,8 +91,10 @@ class ArbiterBase(object):
                 self._log("Stage %s complete. Appending final artifacts"
                           % name)
                 self._final_artifacts += x
+
         with self._lock:
             self._run_complete = True
+            self._complete_run()
 
     def enqueue(self, obj):
         self._queue.put_nowait(obj)
@@ -142,7 +148,10 @@ class LocalArbiter(ArbiterBase):
             pass
 
     async def _main(self):
-        await self._evaluate_pipeline()
+        try:
+            await self._evaluate_pipeline()
+        except exceptions.PipelineRunComplete:
+            self._log('Pipeline run complete')
 
     async def _close_after(self, num_seconds):
         if num_seconds is None:
@@ -167,7 +176,7 @@ class LocalArbiter(ArbiterBase):
                 self._listen_to_queue()
             ]))
         except CancelledError:
-            self._log('CancelledError raised: closing event loop.')
+            self._log('Closing event loop.')
             with self._lock:
                 self._run_complete = True
         finally:
@@ -222,13 +231,17 @@ class RemoteSQSArbiter(ArbiterBase):
         this future as necessary.
         """
         for input_stage in future._input_sources:
-            future.add_associated_future(asyncio.ensure_future(
-                self._pipeline.generate_stage(
-                    input_stage,
-                    self.enqueue,
-                    self._default_executor,
-                    self._artifact_backend
-                )))
+            input_futures = self._pipeline.generate_stage(
+                input_stage,
+                self.enqueue,
+                self._default_executor,
+                self._artifact_backend
+            )
+
+            for input_future in input_futures:
+                future.add_associated_future(asyncio.ensure_future(
+                    input_future
+                ))
         future.set_all_associated_futures_created()
 
     async def _listen_to_queue(self):
@@ -276,5 +289,7 @@ class RemoteSQSArbiter(ArbiterBase):
             self._log('CancelledError raised: closing event loop.')
             with self._lock:
                 self._run_complete = True
+        except exceptions.PipelineRunComplete:
+            self._log('Pipeline run complete')
         finally:
             self._loop.close()

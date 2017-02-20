@@ -22,9 +22,15 @@
 import os
 import os.path
 import copy
+import json
+import itertools
+import hashlib
+from collections import OrderedDict
+
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import ArtifactSourceDoesNotExistError,\
-    ArtifactProviderMissingParameterError
+    ArtifactProviderMissingParameterError,\
+    ArtifactProviderFailedError
 from pipetree.artifact import Artifact
 
 
@@ -104,12 +110,31 @@ class GridSearchArtifactProvider(ArtifactProvider):
         pass
 
     def _yield_artifacts(self):
-        yield self._yield_artifact()
+        for param in self._parameters:
+            if not isinstance(self._parameters[param], list):
+                raise ArtifactProviderFailedError(
+                    provider=self.__class__.__name__,
+                    error= "Parameter %s must be a list" % param)
 
-    def _yield_artifact(self):
-        art = Artifact(self._stage_config)
-        art.item.payload = self._parameters
-        return art
+        ordered_params = OrderedDict(self._parameters)
+        ordered_keys = list(ordered_params.keys())
+        products = list(itertools.product( *list(ordered_params.values()) ))
+
+        for product in products:
+            x = {}
+            for idx in range(len(ordered_keys)):
+                x[ordered_keys[idx]] = product[idx]
+            art = Artifact(self._stage_config)
+            art.item.payload = x
+            for key in x:
+                art._fanout_parameters[key] = x[key]
+
+            h = hashlib.md5()
+            j = json.dumps(x, sort_keys=True)
+            h.update(str(j).encode('utf-8'))
+            art._specific_hash = str(h.hexdigest())
+
+            yield art
 
 class LocalFileArtifactProvider(ArtifactProvider):
     DEFAULTS = {
@@ -117,7 +142,7 @@ class LocalFileArtifactProvider(ArtifactProvider):
     }
 
     def __init__(self, path='', stage_config=None, **kwargs):
-        super().__init__(path=path, stage_config=stage_config, **kwargs, **stage_config._config)
+        super().__init__(path=path, stage_config=stage_config, **kwargs, **stage_config.raw_config)
         if stage_config is None:
             raise ArtifactProviderMissingParameterError(
                 provider=self.__class__.__name__,

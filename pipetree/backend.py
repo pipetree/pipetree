@@ -34,7 +34,7 @@ import time
 
 from pipetree import settings
 from pipetree.utils import attach_config_to_object
-from pipetree.exceptions import ArtifactMissingPayloadError
+from pipetree.exceptions import ArtifactMissingPayloadError, ArtifactNotFoundError
 from pipetree.providers import FileStringStream, FileByteStream
 from pipetree.artifact import Artifact
 
@@ -60,7 +60,9 @@ class ArtifactBackend(object):
         iff one is found matching the provided hashes/properties
         of the given artifact object. Otherwise returns None.
         """
-        cached_artifact = self._find_cached_artifact(artifact)
+        cached_artifact = self._find_cached_artifact(artifact._config,
+                                                     artifact.item.type,
+                                                     artifact.get_uid())
         if cached_artifact is None:
             return None
         else:
@@ -255,7 +257,7 @@ class LocalArtifactBackend(ArtifactBackend):
                   'w') as f:
             json.dump(item_meta, f)
 
-    def _find_cached_artifact(self, artifact):
+    def _find_cached_artifact(self, stage_config, item_type, uid):
         """
         Loads the metadata, but not the payload of an artifact.
 
@@ -265,24 +267,13 @@ class LocalArtifactBackend(ArtifactBackend):
         If only stage & item name are supplied, will return the newest artifact
         given the pruning ordering.
         """
-        if artifact._specific_hash is not None or \
-           artifact._dependency_hash is not None:
-            item_meta = self._load_item_meta(artifact._pipeline_stage,
-                                             artifact.item.type)
-            if artifact.get_uid() in item_meta:
-                artifact.meta_from_dict(item_meta[artifact.get_uid()])
-                artifact._loaded_from_local_cache = True
-                return artifact
-
-            return None
-        else:
-            # Sort artifacts and return most recent
-            sorted_artifacts = self._sorted_artifacts(artifact)
-            if len(sorted_artifacts) == 0:
-                return None
-            sorted_artifacts[0]._loaded_from_local_cache = True
-            return sorted_artifacts[0]
-        raise NotImplementedError
+        item_meta = self._load_item_meta(stage_config.name, item_type)
+        if uid in item_meta:
+            artifact = Artifact(stage_config)
+            artifact.meta_from_dict(item_meta[uid])
+            artifact._loaded_from_local_cache = True
+            return artifact
+        return None
 
     def _get_cached_artifact_payload(self, artifact):
         """
@@ -410,10 +401,11 @@ class LocalArtifactBackend(ArtifactBackend):
             res = []
             for uid in meta['artifacts']:
                 artDict = meta['artifacts'][uid]
-                art = Artifact(stage_config)
-                art.item.type = artDict['item_type']
-                art._specific_hash = artDict['specific_hash']
-                res.append(self._find_cached_artifact(art))
+                cached = self._find_cached_artifact(stage_config, artDict['item_type'], uid)
+                if cached is None:
+                    raise ArtifactNotFoundError(artifact="%s %s" %
+                                                (uid, artDict['specific_hash']))
+                res.append(cached)
             return res
 
     def _get_pipeline_stage_run_meta(self, stage_config,
@@ -668,25 +660,27 @@ class S3ArtifactBackend(ArtifactBackend):
             )
             item = response['Item']
 
-    def _find_cached_artifact(self, artifact):
+    def _find_cached_artifact(self, stage_config, item_type, artifact_uid):
         """
         Loads the metadata, but not the payload of an artifact.
         """
 
         # Attempt to load artifact locally
         if self.enable_local_caching:
-            res = self._localArtifactBackend._find_cached_artifact(artifact)
+            res = self._localArtifactBackend._find_cached_artifact(
+                stage_config, item_type, artifact_uid)
             if res is not None:
                 return res
 
         # Otherwise, query DynamoDB
         art_key = {
-            'artifact_uid': artifact.get_uid()
+            'artifact_uid': artifact_uid
         }
         response = self._artifact_meta_table.get_item(Key=art_key)
         if 'Item' not in response:
             return None
         else:
+            artifact = Artifact(stage_config)
             artifact.meta_from_dict(json.loads(response['Item']['artifact_meta']))
             artifact._loaded_from_s3_cache = True
             return artifact
