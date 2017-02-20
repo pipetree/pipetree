@@ -245,13 +245,12 @@ class Pipeline(object):
             for input_artifact in input_artifacts:
                 # Find artifacts whose fanout parameters match ours
                 conflicting_values = False
-
                 for idx in range(len(product)):
                     param = ordered_keys[idx]
                     param_value = product[idx]
                     if param in input_artifact._fanout_parameters:
                         if input_artifact._fanout_parameters[param] != param_value:
-                            conflicting_values = False
+                            conflicting_values = True
                             break
                 if not conflicting_values:
                     matching_artifacts.append(input_artifact)
