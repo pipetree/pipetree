@@ -187,8 +187,8 @@ class Pipeline(object):
         if pre_reqs is None or len(pre_reqs) == 0:
             # This stage does not require any input artifacts
             self._log("No inputs needed for stage %s" % stage_name)
-            res = await self._run_stage(stage_name, [], executor, backend)
-            return res
+            res = self._run_stage(stage_name, [], executor, backend)
+            return [res]
         else:
             # Schedule an input future with the arbiter
             input_future = InputFuture(stage_name)
@@ -205,16 +205,14 @@ class Pipeline(object):
             self._log("All (%d) inputs acquired for stage %s" %
                   (len(input_artifacts), stage_name))
 
-            fanout_parameters = []
-
+            # Create futures for each unique combination of fanout parameters
             grouped = self.group_fanout_parameters(input_artifacts)
             runs = []
             for group in grouped:
-            # Run the stage using collected input artifacts
-                runs.append(await self._run_stage(stage_name,
-                                                  group,
-                                                  executor,
-                                                  backend))
+                runs.append(self._run_stage(stage_name,
+                                            group,
+                                            executor,
+                                            backend))
             return runs
 
     def group_fanout_parameters(self, input_artifacts):
@@ -241,7 +239,6 @@ class Pipeline(object):
         result = []
         for product in products:
             matching_artifacts = []
-
             for input_artifact in input_artifacts:
                 # Find artifacts whose fanout parameters match ours
                 conflicting_values = False

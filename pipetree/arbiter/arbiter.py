@@ -123,13 +123,16 @@ class LocalArbiter(ArbiterBase):
         this future as necessary.
         """
         for input_stage in future._input_sources:
-            future.add_associated_future(asyncio.ensure_future(
-                self._pipeline.generate_stage(
-                    input_stage,
-                    self.enqueue,
-                    self._local_cpu_executor,
-                    self._artifact_backend
-                )))
+            input_futures = await self._pipeline.generate_stage(
+                input_stage,
+                self.enqueue,
+                self._default_executor,
+                self._artifact_backend
+            )
+            for input_future in input_futures:
+                future.add_associated_future(asyncio.ensure_future(
+                    input_future
+                ))
         future.set_all_associated_futures_created()
 
     async def _listen_to_queue(self):
@@ -231,13 +234,12 @@ class RemoteSQSArbiter(ArbiterBase):
         this future as necessary.
         """
         for input_stage in future._input_sources:
-            input_futures = self._pipeline.generate_stage(
+            input_futures = await self._pipeline.generate_stage(
                 input_stage,
                 self.enqueue,
                 self._default_executor,
                 self._artifact_backend
             )
-
             for input_future in input_futures:
                 future.add_associated_future(asyncio.ensure_future(
                     input_future
@@ -260,7 +262,10 @@ class RemoteSQSArbiter(ArbiterBase):
             pass
 
     async def _main(self):
-        await self._evaluate_pipeline()
+        try:
+            await self._evaluate_pipeline()
+        except exceptions.PipelineRunComplete:
+            self._log('Pipeline run complete')
 
     async def _close_after(self, num_seconds):
         if num_seconds is None:
