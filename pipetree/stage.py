@@ -27,7 +27,7 @@ from pipetree.providers import LocalDirectoryArtifactProvider,\
     LocalFileArtifactProvider,\
     ParameterArtifactProvider
 from pipetree.exceptions import InvalidConfigurationFileError
-from pipetree.artifact import Artifact
+from pipetree.artifact import Artifact, Item
 
 
 class BasePipelineStage(object):
@@ -89,6 +89,45 @@ class ParameterPipelineStage(BasePipelineStage):
         Raise an exception if the config is invald
         """
         return True
+
+class GridSearchParameterStage(BasePipelineStage):
+    """A pipeline stage for gridsearch"""
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        params = self.params_from_config(config)
+        self._artifact_source = GridSearchArtifactProvider(
+            stage_config=config,
+            parameters=params)
+
+    def params_from_config(self, config):
+        """ Extract parameters from a config"""
+        exclude = ['type', 'raw_config', 'parent_class']
+        params = {}
+        for prop in dir(config):
+            value = getattr(config, prop)
+            if not prop.startswith('__') and not inspect.ismethod(value)\
+               and prop not in exclude:
+                params[prop] = value
+        return params
+
+    def validate_prereqs(self, previous_stages):
+        return True
+
+    def _source_artifact(self, artifact_name):
+        pass
+
+    def yield_artifacts(self, input_artifacts=None):
+        for art in self._artifact_source.yield_artifacts():
+            yield art
+
+    def _validate_config(self, config):
+        """
+        Raise an exception if the config is invald
+        """
+        return True
+
 
 
 class LocalFilePipelineStage(BasePipelineStage):
@@ -221,9 +260,7 @@ class ExecutorPipelineStage(BasePipelineStage):
         path = os.path.join(*config.execute.split('.')[:-1]) + '.py'
 
         if not hasattr(self._config, 'directory'):
-            cur_path, _ = os.path.split(os.path.realpath(__file__))
-            parent_path = os.path.join(*cur_path.split('/')[:-1])
-            path = os.path.join("/" + parent_path, path)
+            path = os.path.join(os.getcwd(), path)
         else:
             path = os.path.join(self._config.directory, path)
         spec = importlib.util.spec_from_file_location(

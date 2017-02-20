@@ -79,6 +79,8 @@ class TestLocalArbiter(unittest.TestCase):
         self.assertEqual(len(final_artifacts), 1)
         self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
 
+    def test_fanout(self):
+
     def test_pipeline_caching(self):
         arbiter = LocalArbiter(os.path.join(".", self.config_filename))
         try:

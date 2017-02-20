@@ -205,7 +205,6 @@ class LocalArtifactBackend(ArtifactBackend):
                     f.write(x)
                     artifact.item.payload.close()
                 else:
-                    print(artifact._serialization_type)
                     f.write(artifact.serialize_payload())
 
         self._write_artifact_meta(artifact)
@@ -497,7 +496,6 @@ class S3ArtifactBackend(ArtifactBackend):
                                               'LocationConstraint': self.aws_region})
         except botocore.exceptions.ClientError as err:
             # Bucket already created? Good to go.
-            print("Bucket %s already created" % self.s3_bucket_name)
             pass
 
     def _setup_dynamo_db(self):

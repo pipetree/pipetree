@@ -79,6 +79,37 @@ class ParameterArtifactProvider(ArtifactProvider):
         art.item.payload = self._parameters
         return art
 
+class GridSearchArtifactProvider(ArtifactProvider):
+    DEFAULTS = {
+    }
+
+    def __init__(self, parameters={}, stage_config=None, **kwargs):
+        super().__init__(
+            parameters=parameters,
+            stage_config=stage_config,
+            **kwargs)
+        if stage_config is None:
+            raise ArtifactProviderMissingParameterError(
+                provider=self.__class__.__name__,
+                parameter="stage_config")
+        if len(list(parameters.keys())) is 0:
+            raise ArtifactProviderMissingParameterError(
+                provider=self.__class__.__name__,
+                parameter="parameters")
+
+        self._parameters = parameters
+        self._stage_config = stage_config
+
+    def _validate_config(self):
+        pass
+
+    def _yield_artifacts(self):
+        yield self._yield_artifact()
+
+    def _yield_artifact(self):
+        art = Artifact(self._stage_config)
+        art.item.payload = self._parameters
+        return art
 
 class LocalFileArtifactProvider(ArtifactProvider):
     DEFAULTS = {
@@ -86,7 +117,7 @@ class LocalFileArtifactProvider(ArtifactProvider):
     }
 
     def __init__(self, path='', stage_config=None, **kwargs):
-        super().__init__(path=path, stage_config=stage_config, **kwargs)
+        super().__init__(path=path, stage_config=stage_config, **kwargs, **stage_config._config)
         if stage_config is None:
             raise ArtifactProviderMissingParameterError(
                 provider=self.__class__.__name__,
@@ -94,7 +125,6 @@ class LocalFileArtifactProvider(ArtifactProvider):
         self._stage_config = stage_config
         self._path = path
         self._validate_file()
-        print("BINARY MODE", self.binary_mode)
 
     def _validate_config(self):
         pass
@@ -128,7 +158,7 @@ class LocalDirectoryArtifactProvider(ArtifactProvider):
     }
 
     def __init__(self, path='', stage_config=None, **kwargs):
-        super().__init__(path=path, stage_config=None, **kwargs)
+        super().__init__(path=path, stage_config=stage_config, **kwargs, **stage_config.raw_config)
         if stage_config is None:
             raise ArtifactProviderMissingParameterError(
                 provider=self.__class__.__name__,
