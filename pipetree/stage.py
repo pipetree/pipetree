@@ -200,11 +200,14 @@ class ExecutorPipelineStage(BasePipelineStage):
     Pipeline stage for executing user-supplied functions.
 
     Arguments are passed to the function in the following way:
-    fn(stage_A_name={"itemTypeA": [Artifact0, Artifact1, ...], "itemTypeB": [...]},
+    fn(stage_A_name={"itemTypeA": [Item0, Item1, ...], "itemTypeB": [...]},
        stage_B_name={...})
 
     If a stage only produces items without a type, then the list of output artifacts
-    will be passed as a simple array. I.e) simple_stage=[Artifact0, Artifact1, Artifact2]
+    will be passed as a simple array. I.e) simple_stage=[Item0, Item1, Item2]
+
+    If config['full_artifacts'] == True, then Artifact objects will be passed
+    instead of Items
 
     """
     def __init__(self, config, path=None):

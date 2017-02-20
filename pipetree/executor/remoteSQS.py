@@ -31,12 +31,15 @@ from pipetree.executor.server import ExecutorServer
 
 
 def get_or_create_queue(sqs_resource, queue_name):
+    print("GOCQ", sqs_resource, queue_name)
     try:
-        return sqs_resource.create_queue(QueueName=queue_name)
+        q = sqs_resource.create_queue(QueueName=queue_name)
+        print("Queue %s does not exist. Creating." % queue_name)
+        return q
     except botocore.exceptions.ClientError as e:
         if "Exists" not in "%s" % e:
             raise e
-        print("Queue %s does not exist. Creating." % queue_name)
+        print("Queue %s already exists. Returning reference.")
         return sqs_resource.get_queue_by_name(QueueName=queue_name)
 
 

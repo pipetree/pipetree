@@ -11,3 +11,4 @@ echo "RL ID $RL_ID"
 # in order for the ApplicationStart phase of codedeploy not to hang.
 # See: http://stackoverflow.com/questions/32085476/aws-code-deploy-appspec-isnt-starting-my-server
 docker run -v /var/pipetree/:/var/pipetree/  --log-driver=awslogs --log-opt awslogs-region=us-west-1  --log-opt awslogs-group=pipetreeContainerLogs --log-opt awslogs-stream=${RL_ID} -t pipetree-user-image > /dev/null 2> /dev/null < /dev/null &
+exit 0

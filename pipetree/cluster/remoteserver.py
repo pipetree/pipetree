@@ -14,6 +14,8 @@ class RemoteServer(object):
 
     def run(self):
         self.load_config()
+        print("")
+        print("================ Remote Pipetree server initializing =============")
         print(json.dumps(self._config, indent=4))
         self._server = RemoteSQSServer(
             aws_region=self._config['aws_region'],
