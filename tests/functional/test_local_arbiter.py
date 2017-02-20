@@ -48,7 +48,7 @@ class TestLocalArbiter(unittest.TestCase):
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-            
+
         pass
 
     def tearDown(self):
@@ -58,7 +58,7 @@ class TestLocalArbiter(unittest.TestCase):
         return OrderedDict([(
             'StageA', {
                 'type': 'LocalFilePipelineStage',
-                'filepath': self.testfile_name
+                'filepath': self.testfile_name,
             }),
             ('StageB', {
                 'inputs': ['StageA'],

@@ -40,7 +40,7 @@ _default_pipeline_config = OrderedDict([
     ('CatPictures', {
         'type': 'LocalDirectoryPipelineStage',
         'filepath': 'cat_imgs',
-        'read_content': True
+        'binary_mode': True
     }),
     ('WriteBytes', {
         'inputs': ['CatPictures'],

@@ -21,6 +21,7 @@
 import unittest
 import asyncio
 import json
+import time
 import os
 from collections import OrderedDict
 from pipetree.executor.server import ExecutorServer
@@ -85,8 +86,11 @@ class TestServer(unittest.TestCase):
                             "stage_config": self.generate_pipeline_config()["StageB"],
                             "artifacts":  list(map(lambda x: x.meta_to_dict(), arts))
         })
-        server.run_event_loop(2)
+        server.run_event_loop(5)
         job_result = server.retrieve_job(job_id)
         self.assertEqual(len(job_result['artifacts']), 1)
-        self.assertEqual(self.testfile_contents,
-                         job_result['artifacts'][0].item.payload)
+
+        pl = job_result['artifacts'][0].item.payload
+        pl.open()
+        self.assertEqual(self.testfile_contents, pl.read())
+        pl.close()

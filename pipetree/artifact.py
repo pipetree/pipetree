@@ -155,7 +155,11 @@ class Artifact(object):
             return json.dumps(self.item.payload)
         if self._serialization_type == "string":
             return self.item.payload
-        if self._serialization_type == "contentstream":
+        # binarystream and stringstream serialization should
+        # be handled by the backend.
+        if self._serialization_type == "binarystream":
+            raise NotImplementedError
+        if self._serialization_type == "stringstream":
             raise NotImplementedError
         raise ArtifactUnknownSerializationTypeError(
             stage=self._stage,
@@ -170,15 +174,17 @@ class Artifact(object):
         return None
 
     def load_payload(self, payload):
+        if self._serialization_type in ["stringstream", "bytestream"]:
+            self.item.payload = payload
+            return
+
         s = self.decode_stringlike(payload)
 
         if self._serialization_type == "json":
             self.item.payload = json.loads(s)
         elif self._serialization_type == "string":
+            s = self.decode_stringlike(payload)
             self.item.payload = s
-        elif self._serialization_type == "contentstream":
-            #ContentStream object
-            self.item.payload = payload
         else:
             raise ArtifactUnknownSerializationTypeError(
                 stage=self._stage,

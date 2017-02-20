@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import unittest
+import os.path
 from pipetree.config import PipelineStageConfig
 from pipetree.stage import PipelineStageFactory
 
@@ -32,17 +33,20 @@ class TestExecutorPipelineStage(unittest.TestCase):
             'type': 'ParameterPipelineStage',
             'parameter_a': self.test_array
         }
-
+        args = ["/"] + (__file__.split("/")[1:-1])
         self.stage_b = {
             'inputs': ['StageA'],
             'execute': 'module.executor_function.stageB',
-            'type': 'ExecutorPipelineStage'
+            'type': 'ExecutorPipelineStage',
+            'directory': os.path.join(*args)
         }
 
         self.stage_c = {
             'inputs': ['StageB'],
             'execute': 'module.executor_function.stageC',
-            'type': 'ExecutorPipelineStage'
+            'type': 'ExecutorPipelineStage',
+            'directory': os.path.join(*args),
+            'full_artifacts': True
         }
 
         self.stage_a_config = PipelineStageConfig('StageA', self.stage_a)
@@ -58,22 +62,18 @@ class TestExecutorPipelineStage(unittest.TestCase):
 
         stage_a_out = []
         for x in stage_a.yield_artifacts():
-            print(x.item.payload)
             stage_a_out.append(x)
 
         stage_b_out = []
         for x in stage_b.yield_artifacts(stage_a_out):
-            print(x.item.payload)
             stage_b_out.append(x)
 
         stage_c_out = []
         for x in stage_c.yield_artifacts(stage_b_out):
-            print(x.item.payload)
             stage_c_out.append(x)
 
         res = None
         for x in stage_c_out:
-            print(x.item.payload)
             res = x
 
-        self.assertEqual(res, "foo, bar, baz information_value5.0")
+        self.assertEqual(res.item.payload, "foo, bar, baz information_value5.0")

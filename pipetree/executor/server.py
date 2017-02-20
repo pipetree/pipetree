@@ -98,6 +98,7 @@ class ExecutorServer(object):
             loaded_artifacts.append(loaded)
 
         # Execute the task
+        print("About to create task for executor")
         exec_task = self._executor.create_task(stage, loaded_artifacts)
         result = await exec_task.generate_artifacts()
 
@@ -143,6 +144,7 @@ class ExecutorServer(object):
         try:
             self._loop.run_until_complete(asyncio.wait([
                 self._close_after(close_after),
+                self._executor._process_queue(),
                 self._listen_to_queue()
             ]))
         except CancelledError:

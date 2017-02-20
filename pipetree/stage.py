@@ -156,7 +156,9 @@ class IdentityPipelineStage(BasePipelineStage):
     def yield_artifacts(self, input_artifacts):
         for artifact in input_artifacts:
             new_artifact = Artifact(self._config,
-                                    artifact.item)
+                                    artifact.item,
+                                    serialization_type=artifact._serialization_type
+            )
             new_artifact._specific_hash = artifact._specific_hash
             yield new_artifact
 
@@ -205,7 +207,7 @@ class ExecutorPipelineStage(BasePipelineStage):
     will be passed as a simple array. I.e) simple_stage=[Artifact0, Artifact1, Artifact2]
 
     """
-    def __init__(self, config):
+    def __init__(self, config, path=None):
         super().__init__(config)
         self._module = None
         self._callable = None
@@ -213,7 +215,7 @@ class ExecutorPipelineStage(BasePipelineStage):
         self._load_module(config)
 
     def _load_module(self, config):
-        path = os.path.join(os.getcwd(), *config.execute.split('.')[:-1]) + '.py'
+        path = os.path.join(*config.execute.split('.')[:-1]) + '.py'
 
         if not hasattr(self._config, 'directory'):
             cur_path, _ = os.path.split(os.path.realpath(__file__))
@@ -224,6 +226,8 @@ class ExecutorPipelineStage(BasePipelineStage):
         spec = importlib.util.spec_from_file_location(
             config.name,
             path)
+        if not hasattr(self._config, 'full_artifacts'):
+            self.full_artifacts = False
         self._module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self._module)
         self._callable = config.execute.split('.')[-1]
@@ -247,7 +251,10 @@ class ExecutorPipelineStage(BasePipelineStage):
                 kwargs[artifact._pipeline_stage] = {}
             if artifact.item.type not in kwargs[artifact._pipeline_stage]:
                 kwargs[artifact._pipeline_stage][artifact.item.type] = []
-            kwargs[artifact._pipeline_stage][artifact.item.type].append(artifact)
+            if self.full_artifacts:
+                kwargs[artifact._pipeline_stage][artifact.item.type].append(artifact)
+            else:
+                kwargs[artifact._pipeline_stage][artifact.item.type].append(artifact.item)
         keys = list(kwargs.keys())
         if len(keys) is 1 and list(kwargs[keys[0]].keys())[0] is None:
             kwargs[keys[0]] = kwargs[keys[0]][None]

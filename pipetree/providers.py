@@ -82,6 +82,7 @@ class ParameterArtifactProvider(ArtifactProvider):
 
 class LocalFileArtifactProvider(ArtifactProvider):
     DEFAULTS = {
+        'binary_mode': False
     }
 
     def __init__(self, path='', stage_config=None, **kwargs):
@@ -93,6 +94,7 @@ class LocalFileArtifactProvider(ArtifactProvider):
         self._stage_config = stage_config
         self._path = path
         self._validate_file()
+        print("BINARY MODE", self.binary_mode)
 
     def _validate_config(self):
         pass
@@ -110,14 +112,19 @@ class LocalFileArtifactProvider(ArtifactProvider):
     def _yield_artifact(self):
         artifact_path = os.path.join(os.getcwd(), self._path)
         content = ""
-        art = Artifact(self._stage_config, serialization_type="contentstream")
-        art.item.payload = FileContentStream(artifact_path)
+        if self.binary_mode:
+            art = Artifact(self._stage_config, serialization_type="bytestream")
+            art.item.payload = FileByteStream(artifact_path)
+        else:
+            art = Artifact(self._stage_config, serialization_type="stringstream")
+            art.item.payload = FileStringStream(artifact_path)
         return art
 
 
 class LocalDirectoryArtifactProvider(ArtifactProvider):
     DEFAULTS = {
-        'read_content': True
+        'read_content': True,
+        'binary_mode': False
     }
 
     def __init__(self, path='', stage_config=None, **kwargs):
@@ -148,8 +155,12 @@ class LocalDirectoryArtifactProvider(ArtifactProvider):
                                      self._root,
                                      artifact_name)
         if self.read_content:
-            art = Artifact(self._stage_config, serialization_type="contentstream")
-            art.item.payload = FileContentStream(artifact_path)
+            if self.binary_mode:
+                art = Artifact(self._stage_config, serialization_type="bytestream")
+                art.item.payload = FileByteStream(artifact_path)
+            else:
+                art = Artifact(self._stage_config, serialization_type="stringstream")
+                art.item.payload = FileStringStream(artifact_path)
             return art
         else:
             art = Artifact(self._stage_config)
@@ -168,7 +179,7 @@ class ContentStream(object):
         raise NotImplementedError
 
 
-class FileContentStream(object):
+class FileStringStream(ContentStream):
     def __init__(self, filepath):
         self._filepath = filepath
         self._file = None
@@ -183,3 +194,12 @@ class FileContentStream(object):
 
     def close(self):
         self._file.close()
+
+
+class FileByteStream(FileStringStream):
+    def __init__(self, filepath):
+        self._filepath = filepath
+        self._file = None
+
+    def open(self):
+        self._file = open(self._filepath, 'rb')

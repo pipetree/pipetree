@@ -1,15 +1,14 @@
 from pipetree.artifact import Item
 
 def stageB(StageA):
-    print(StageA[0].item.payload['parameter_a'])
     yield Item(
         type="list",
-        payload=StageA[0].item.payload['parameter_a'],
-        meta={"list_length": len(StageA[0].item.payload['parameter_a'])})
+        payload=StageA[0].payload['parameter_a'],
+        meta={"list_length": len(StageA[0].payload['parameter_a'])})
     yield Item(
         type="list",
-        payload=list(reversed(StageA[0].item.payload['parameter_a'])),
-        meta={"list_length": len(StageA[0].item.payload['parameter_a'])})
+        payload=list(reversed(StageA[0].payload['parameter_a'])),
+        meta={"list_length": len(StageA[0].payload['parameter_a'])})
     yield Item(
         type="information",
         payload="information_value",

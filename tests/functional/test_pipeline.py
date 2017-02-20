@@ -122,7 +122,7 @@ class TestPipelineLoading(unittest.TestCase):
                 'inputs': 'StageA',
                 'type': 'ExecutorPipelineStage',
                 'execute': 'package.file.function',
-                'directory': os.getcwd()                
+                'directory': os.getcwd()
             },
         })
         try:
@@ -145,7 +145,7 @@ class TestPipelineLoading(unittest.TestCase):
         except InvalidConfigurationFileError:
             pass
 
-    def test_generage_executor_no_input(self):
+    def test_generate_executor_no_input(self):
         config = OrderedDict({
             'StageA': {
                 'type': 'LocalDirectoryPipelineStage',
@@ -154,7 +154,7 @@ class TestPipelineLoading(unittest.TestCase):
             'StageB': {
                 'type': 'ExecutorPipelineStage',
                 'execute': 'package.file.function',
-                'directory': os.getcwd()                
+                'directory': os.getcwd()
             },
         })
         try:
@@ -164,7 +164,7 @@ class TestPipelineLoading(unittest.TestCase):
         except InvalidConfigurationFileError:
             pass
 
-    def test_generage_executor_no_execute(self):
+    def test_generate_executor_no_execute(self):
         config = OrderedDict({
             'StageA': {
                 'type': 'LocalDirectoryPipelineStage',
@@ -182,7 +182,7 @@ class TestPipelineLoading(unittest.TestCase):
         except InvalidConfigurationFileError:
             pass
 
-    def test_generage_executor_bad_reference(self):
+    def test_generate_executor_bad_reference(self):
         config = OrderedDict({
             'StageA': {
                 'type': 'LocalDirectoryPipelineStage',
@@ -217,4 +217,3 @@ class TestPipelineLoading(unittest.TestCase):
         ])
         pipeline = self.factory.generate_pipeline_from_dict(config)
         self.assertEqual(set(('StageB',)), pipeline._endpoints)
-        

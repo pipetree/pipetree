@@ -70,7 +70,7 @@ class TestParameterArtifactProvider(unittest.TestCase):
         arts = provider.yield_artifacts()
         la = list(arts)
         self.assertEqual(1, len(la))
-        yielded_params = la[0].payload
+        yielded_params = la[0].item.payload
         for k in self.test_parameters:
             if k not in yielded_params:
                 raise ArtifactProviderFailedError(
@@ -134,6 +134,18 @@ class TestLocalFileArtifactProvider(unittest.TestCase):
         art = provider._yield_artifact()
         art.item.payload.open()
         self.assertEqual(art.item.payload.read(),
+                         self.filedatas[0])
+        art.item.payload.close()
+
+    def test_load_binary_data(self):
+        provider = LocalFileArtifactProvider(
+            path=os.path.join(self.dirname, self.filename[0]),
+            stage_config=self.stage_config,
+            binary_mode=True,
+            read_content=True)
+        art = provider._yield_artifact()
+        art.item.payload.open()
+        self.assertEqual(art.item.payload.read().decode('utf-8'),
                          self.filedatas[0])
         art.item.payload.close()
 
@@ -209,4 +221,17 @@ class TestLocalDirectoryArtifactProvider(unittest.TestCase):
             art_data = art.item.payload
             art.item.payload.open()
             self.assertEqual(art.item.payload.read(), data)
+            art.item.payload.close()
+
+    def test_load_binary_data(self):
+        provider = LocalDirectoryArtifactProvider(path=self.dirname,
+                                                  stage_config=self.stage_config,
+                                                  read_content=True,
+                                                  binary_mode=True
+        )
+        for art, data in zip(provider.yield_artifacts(),
+                             self.filedatas):
+            art_data = art.item.payload
+            art.item.payload.open()
+            self.assertEqual(art.item.payload.read().decode('utf-8'), data)
             art.item.payload.close()

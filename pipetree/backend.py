@@ -35,6 +35,7 @@ import time
 from pipetree import settings
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import ArtifactMissingPayloadError
+from pipetree.providers import FileStringStream, FileByteStream
 from pipetree.artifact import Artifact
 
 STAGE_COMPLETE = 'complete'
@@ -191,16 +192,20 @@ class LocalArtifactBackend(ArtifactBackend):
             self._relative_artifact_dir(artifact)))
 
         with self._write_lock:
+            mode = 'w'
+            if artifact._serialization_type == "bytestream":
+                mode = 'wb'
             with open(os.path.join(self.path,
                                    self._relative_artifact_path(artifact)),
-                      'w') as f:
-                if artifact._serialization_type == "contentstream":
+                      mode) as f:
+                if artifact._serialization_type in ["bytestream", "stringstream"]:
                     # TODO, write in chunks
                     artifact.item.payload.open()
                     x = artifact.item.payload.read()
                     f.write(x)
                     artifact.item.payload.close()
                 else:
+                    print(artifact._serialization_type)
                     f.write(artifact.serialize_payload())
 
         self._write_artifact_meta(artifact)
@@ -286,13 +291,16 @@ class LocalArtifactBackend(ArtifactBackend):
         has already been produced and is cached.
         """
         if artifact._serialization_type == "bytestream":
-            return open(os.path.join(self.path,
-                               self._relative_artifact_path(artifact)),
-                  'r')
-        with open(os.path.join(self.path,
-                               self._relative_artifact_path(artifact)),
-                  'r') as f:
-            return f.read()
+            return FileByteStream(
+                os.path.join(self.path, self._relative_artifact_path(artifact)))
+        elif artifact._serialization_type == "stringstream":
+            return FileStringStream(
+                os.path.join(self.path, self._relative_artifact_path(artifact)))
+        else:
+            with open(os.path.join(self.path,
+                                   self._relative_artifact_path(artifact)),
+                      'r') as f:
+                return f.read()
 
     def _get_cached_artifact_metadata(self, artifact):
         """

@@ -62,6 +62,7 @@ class TestArtifact(unittest.TestCase):
             "definition_hash": "dac9630aec642a428cd73f4be0a03569",
             "specific_hash": "bc1687bbb3b97214d46b7c30ab307cc1",
             "dependency_hash": "ecad5fc98abf66565e009155f5e57dda",
+            "serialization_type": "json",
             "pipeline_stage": "some_stage",
             "item": {
                 "meta": {"loss": 0.2},
