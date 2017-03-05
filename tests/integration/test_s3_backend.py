@@ -32,6 +32,7 @@ import asyncio
 import random
 import time
 import json
+import logging
 
 from pipetree.exceptions import ArtifactMissingPayloadError
 from pipetree.backend import S3ArtifactBackend, LocalArtifactBackend, STAGE_COMPLETE, STAGE_DOES_NOT_EXIST, STAGE_IN_PROGRESS
@@ -47,7 +48,7 @@ class TestS3ArtifactBackend(AWSTestBase):
         self.filedatas = ['foo bar baz', 'hello, world']
         self.fs = isolated_filesystem()
         self.fs.__enter__()
-        
+
         for name, data in zip(self.filename, self.filedatas):
             with open(os.path.join(os.getcwd(),
                                    name), 'w') as f:
@@ -62,7 +63,12 @@ class TestS3ArtifactBackend(AWSTestBase):
             json.dump(self.generate_pipeline_config(), f)
 
         # Cleanup before each test is run
-        self.cleanup_test_tables(self._default_backend)            
+        AWSTestBase.cleanup_tables(self._default_backend)
+
+        logging.getLogger('boto3').setLevel(logging.CRITICAL)
+        logging.getLogger('botocore').setLevel(logging.CRITICAL)
+        logging.getLogger('nose').setLevel(logging.CRITICAL)
+
 
     def tearDown(self):
         self.fs.__exit__(None, None, None)
@@ -84,7 +90,7 @@ class TestS3ArtifactBackend(AWSTestBase):
         artifact = Artifact(self.stage_config)
         artifact.item.payload = "foobs"
         s3_backend.save_artifact(artifact)
-        self.cleanup_test_tables(self._default_backend)
+        AWSTestBase.cleanup_tables(self._default_backend)
 
     def test_no_profile(self):
         x = random.randrange(10000000000000)
@@ -143,10 +149,10 @@ class TestS3ArtifactBackend(AWSTestBase):
         distutils.dir_util.mkpath(path)
 
         loaded_artifact = backend.load_artifact(artifact)
-        self.assertEqual(loaded_artifact.item.payload.decode('utf-8'), payload)
+        self.assertEqual(loaded_artifact.item.payload, payload)
         self.assertEqual(True, loaded_artifact._loaded_from_s3_cache)
 
-        self.cleanup_test_tables(self._default_backend)
+        AWSTestBase.cleanup_tables(self._default_backend)
 
     def test_pipeline_caching(self):
         self._default_backend.enable_local_caching = False
@@ -159,10 +165,10 @@ class TestS3ArtifactBackend(AWSTestBase):
             pass
 
         final_artifacts = arbiter.await_run_complete()
-        for artifact in final_artifacts:
-            print(artifact.item.payload)
         self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
+        for artifact in final_artifacts[0]:
+            print(artifact.item.payload)
+        self.assertEqual(final_artifacts[0][0]._loaded_from_cache, False)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -179,9 +185,9 @@ class TestS3ArtifactBackend(AWSTestBase):
         final_artifacts = arbiter.await_run_complete()
 
         print("Final Artifacts")
-        for artifact in final_artifacts:
-            print(artifact.item.payload)
-        
         self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_s3_cache, True)
-        self.cleanup_test_tables(self._default_backend)        
+        for artifact in final_artifacts[0]:
+            print(artifact.item.payload)
+
+        self.assertEqual(final_artifacts[0][0]._loaded_from_s3_cache, True)
+        AWSTestBase.cleanup_tables(self._default_backend)

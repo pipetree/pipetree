@@ -27,11 +27,11 @@ from pipetree import settings
 from pipetree.executor import Executor, LocalCPUExecutor
 from pipetree.artifact import Artifact
 from pipetree.backend import S3ArtifactBackend
+from pipetree.executor.executor import ALL_ARTIFACTS_GENERATED
 from pipetree.executor.server import ExecutorServer
 
 
 def get_or_create_queue(sqs_resource, queue_name):
-    print("GOCQ", sqs_resource, queue_name)
     try:
         q = sqs_resource.create_queue(QueueName=queue_name)
         print("Queue %s does not exist. Creating." % queue_name)
@@ -85,6 +85,8 @@ class RemoteSQSExecutor(Executor):
 
         self._log("RemoteSQSExecutor intitialized with task queue %s and result queue %s" %
               (task_queue_name, result_queue_name))
+        self._local_executor = LocalCPUExecutor(self._loop)
+
     def _log(self, message):
         print("RemoteSQSExecutor: %s" % message)
 
@@ -144,6 +146,26 @@ class RemoteSQSExecutor(Executor):
                               (config_hash, dependency_hash))
                     return message
 
+    async def _execute_locally(self, task):
+        """
+        Execute a task locally when necessary
+        """
+        local_task = self._local_executor.create_task(task._stage,
+                                                      task._input_artifacts,
+                                                      task._monitor,
+                                                      task._pipeline_run_id)
+        arts = []
+        res = (None, None)
+        while res[1] != ALL_ARTIFACTS_GENERATED:
+            res = await local_task._queue.get()
+            arts.append(res)
+            if res[0] != None:
+                self._backend.save_artifact(res[0])
+
+        # Re-enqueue artifacts in task for future processing
+        for art in arts:
+            task.enqueue_artifact(art)
+
     async def _process_queue(self):
         while True:
             task = await self._queue.get()
@@ -151,10 +173,16 @@ class RemoteSQSExecutor(Executor):
                       (task._stage._config.name,
                        len(task._input_artifacts)))
 
-            # Push task to queue
             config_hash = task._stage._config.hash()
             dependency_hash = Artifact.dependency_hash(
                 task._input_artifacts)
+
+            # If task should be executed locally, do so.
+            if(True == hasattr(task._stage, "_local_stage")):
+                await self._execute_locally(task)
+                return
+
+            # Push task to SQS queue
             self._queue_push(task, config_hash, dependency_hash)
 
             # Wait until task is complete

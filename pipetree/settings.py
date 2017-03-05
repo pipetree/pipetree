@@ -31,3 +31,12 @@ DYNAMODB_STAGE_RUN_TABLE_NAME = "pipetree-stage-run-table"
 
 SQS_TASK_QUEUE_NAME = 'pipetree-executor-task-queue'
 SQS_RESULT_QUEUE_NAME = 'pipetree-executor-result-queue'
+
+class PipetreeSettings(object):
+    aws_region=AWS_REGION,
+    aws_profile=AWS_PROFILE,
+    s3_artifact_bucket_name=S3_ARTIFACT_BUCKET_NAME,
+    dynamodb_artifact_table_name=DYNAMODB_ARTIFACT_TABLE_NAME,
+    dynamodb_stage_run_table_name=DYNAMODB_STAGE_RUN_TABLE_NAME,
+    sqs_task_queue_name=SQS_TASK_QUEUE_NAME,
+    sqs_result_queue_name=SQS_RESULT_QUEUE_NAME

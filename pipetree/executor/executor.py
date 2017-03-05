@@ -26,15 +26,21 @@ ALL_ARTIFACTS_GENERATED = "ALL_ARTIFACTS_GENERATED"
 
 
 class ExecutorTask(object):
-    def __init__(self, loop, stage, input_artifacts):
+    def __init__(self, loop, stage, input_artifacts,
+                 pipeline_run_id=None,
+                 monitor=None):
         """
         Task corresponding to the execution of a stage
         utilizing input_artifacts.
         """
+        if not isinstance(input_artifacts, list):
+            raise Exception
         self._input_artifacts = input_artifacts
         self._stage = stage
         self._loop = loop
         self._queue = asyncio.Queue(loop=self._loop)
+        self._pipeline_run_id = pipeline_run_id
+        self._monitor = monitor
 
     @staticmethod
     def wrap_input_artifact(artifact):
@@ -50,6 +56,7 @@ class ExecutorTask(object):
         return json.dumps({
             "stage_name": self._stage._config.name,
             "stage_config": self._stage._config.raw_config,
+            "pipeline_run_id": self._pipeline_run_id,
             "artifacts": list(map(ExecutorTask.wrap_input_artifact,
                                   self._input_artifacts))
         })
@@ -76,6 +83,10 @@ class ExecutorTask(object):
         artifacts = []
         while True:
             (artifact, status) = await self._queue.get()
+            if self._monitor is not None:
+                self._monitor.log_artifact_produced(self._stage,
+                                                   artifact,
+                                                   self._pipeline_run_id)
             if status == ALL_ARTIFACTS_GENERATED:
                 break
             artifacts.append(artifact)
@@ -88,10 +99,13 @@ class Executor(object):
         self._queue = asyncio.Queue(loop=self._loop)
         asyncio.ensure_future(self._process_queue())
 
-    def create_task(self, stage, input_artifacts):
+    def create_task(self, stage, input_artifacts, monitor, pipeline_run_id=None):
         task = ExecutorTask(loop=self._loop,
                             stage=stage,
-                            input_artifacts=input_artifacts)
+                            input_artifacts=input_artifacts,
+                            monitor=monitor,
+                            pipeline_run_id=pipeline_run_id
+        )
         self._queue.put_nowait(task)
         return task
 

@@ -25,6 +25,7 @@ import copy
 import json
 import itertools
 import hashlib
+from contextlib import contextmanager
 from collections import OrderedDict
 
 from pipetree.utils import attach_config_to_object
@@ -222,6 +223,21 @@ class LocalDirectoryArtifactProvider(ArtifactProvider):
             art.item.payload = artifact_path
             return art
 
+@contextmanager
+def openStream(contentStream):
+    if not isinstance(contentStream, ContentStream):
+        raise Exception("openStream only opens ContentStreams")
+    contentStream.open()
+    yield contentStream
+    contentStream.close()
+
+@contextmanager
+def readStream(contentStream):
+    if not isinstance(contentStream, ContentStream):
+        raise Exception("openStream only opens ContentStreams")
+    contentStream.open()
+    yield contentStream.read()
+    contentStream.close()
 
 class ContentStream(object):
     def open():
@@ -232,6 +248,27 @@ class ContentStream(object):
 
     def read(number_bytes):
         raise NotImplementedError
+
+
+class S3ObjectStream(ContentStream):
+    def __init__(self, s3_object,
+                 bytestream=False,
+                 encoding='utf-8'):
+        self._s3_object = s3_object
+        self._bytestream = bytestream
+        self._encoding = encoding
+
+    def open(self):
+        return
+
+    def read(self, n=None):
+        if self._bytestream:
+            return self._s3_object['Body'].read(n)
+        else:
+            return self._s3_object['Body'].read(n).decode(self._encoding)
+
+    def close(self):
+        self._s3_object['Body'].close()
 
 
 class FileStringStream(ContentStream):

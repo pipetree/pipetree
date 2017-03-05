@@ -16,3 +16,4 @@ STAGES = {
 
 from pipetree.pipeline import Pipeline
 from pipetree.artifact import Item
+from pipetree.providers import openStream, readStream

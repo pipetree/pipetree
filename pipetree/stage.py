@@ -63,6 +63,7 @@ class ParameterPipelineStage(BasePipelineStage):
         self._artifact_source = ParameterArtifactProvider(
             stage_config=config,
             parameters=params)
+        self._local_stage = True
 
     def params_from_config(self, config):
         """ Extract parameters from a config"""
@@ -101,6 +102,7 @@ class GridSearchPipelineStage(BasePipelineStage):
         self._artifact_source = GridSearchArtifactProvider(
             stage_config=config,
             parameters=params)
+        self._local_stage = True
 
     def params_from_config(self, config):
         """ Extract parameters from a config"""
@@ -139,6 +141,7 @@ class LocalFilePipelineStage(BasePipelineStage):
         self._artifact_source = LocalFileArtifactProvider(
             path=config.filepath,
             stage_config=config)
+        self._local_stage = True
 
     def validate_prereqs(self, previous_stages):
         return True
@@ -214,6 +217,7 @@ class LocalDirectoryPipelineStage(BasePipelineStage):
         self._artifact_source = LocalDirectoryArtifactProvider(
             path=config.filepath,
             stage_config=config)
+        self._local_stage = True
 
     def validate_prereqs(self, previous_stages):
         return True

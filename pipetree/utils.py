@@ -32,3 +32,9 @@ def name_is_pythonic(name):
 def attach_config_to_object(obj, config):
     for key, value in config.items():
         setattr(obj, key, value)
+
+def camelCase(wordList):
+    buf = ""
+    for word in wordList:
+        buf += word[0].upper() + word[1:].lower()
+    return buf

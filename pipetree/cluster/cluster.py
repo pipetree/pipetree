@@ -247,7 +247,7 @@ class PipetreeCluster(object):
                 logs[resource].append(msg)
         return logs
 
-    def run_arbiter(self, filepath):
+    def run_arbiter(self, filepath, monitor=None, pipeline_run_id=None):
         arbiter = RemoteSQSArbiter(
             filepath,
             s3_bucket_name=self._s3_artifact_bucket_name,
@@ -257,5 +257,7 @@ class PipetreeCluster(object):
             stage_run_table_name=self._dynamodb_stage_run_table_name,
             task_queue_name=self._sqs_task_queue_name,
             result_queue_name=self._sqs_result_queue_name,
+            pipeline_run_id=pipeline_run_id,
+            monitor=monitor
         )
         arbiter.run_event_loop()

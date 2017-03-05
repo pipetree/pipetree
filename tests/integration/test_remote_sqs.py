@@ -28,17 +28,19 @@ from concurrent.futures import CancelledError
 from collections import OrderedDict
 from pipetree.arbiter import LocalArbiter
 import boto3
+import logging
 import botocore
 import asyncio
 import random
 import time
 import json
 
+from pipetree import openStream, readStream
 from pipetree.exceptions import ArtifactMissingPayloadError
 from pipetree.backend import S3ArtifactBackend, LocalArtifactBackend, STAGE_COMPLETE, STAGE_DOES_NOT_EXIST, STAGE_IN_PROGRESS
 from pipetree.config import PipelineStageConfig
 from pipetree.artifact import Artifact, Item
-
+from pipetree.monitor import Monitor
 
 from pipetree.stage import PipelineStageFactory
 from pipetree.executor.remoteSQS import RemoteSQSExecutor, RemoteSQSServer
@@ -49,12 +51,12 @@ import asyncio
 class TestRemoteSQS(AWSTestBase):
     def setUp(self):
         # File system configuration
-        self.filename = ['foo.bar', 'foo.baz']
+        self.filenames = ['foo.bar', 'foo.baz']
         self.filedatas = ['foo bar baz', 'hello, world']
         self.fs = isolated_filesystem()
         self.fs.__enter__()
 
-        for name, data in zip(self.filename, self.filedatas):
+        for name, data in zip(self.filenames, self.filedatas):
             with open(os.path.join(os.getcwd(),
                                    name), 'w') as f:
                 f.write(data)
@@ -64,6 +66,25 @@ class TestRemoteSQS(AWSTestBase):
             "type": "ParameterPipelineStage",
             "param_a": "string parameter value"
         })
+
+        self.local_stage_config = PipelineStageConfig("local_file_stage_name", {
+            "type": "LocalFilePipelineStage",
+            "filepath": os.path.join(os.getcwd(), self.filenames[0])
+        })
+
+        args = ["/"] + (__file__.split("/")[1:-1])
+        self.executor_stage_config = {
+            'inputs': ['StageA'],
+            'execute': 'module.executor_function.fun',
+            'type': 'ExecutorPipelineStage',
+            'directory': os.path.join(*args)
+        }
+
+        self.monitor = Monitor()
+
+        logging.getLogger('boto3').setLevel(logging.CRITICAL)
+        logging.getLogger('botocore').setLevel(logging.CRITICAL)
+        logging.getLogger('nose').setLevel(logging.CRITICAL)
 
     def tearDown(self):
         self.fs.__exit__(None, None, None)
@@ -81,7 +102,7 @@ class TestRemoteSQS(AWSTestBase):
         pf = PipelineStageFactory()
         stage = pf.create_pipeline_stage(self.stage_config)
         input_artifacts = [Artifact(self.stage_config)]
-        executor.create_task(stage, input_artifacts)
+        executor.create_task(stage, input_artifacts, self.monitor)
 
         async def process_loop(executor, stage, input_artifacts):
             exit_loop = False
@@ -150,7 +171,11 @@ class TestRemoteSQS(AWSTestBase):
         input_artifacts = []
         for art in stage.yield_artifacts():
             input_artifacts.append(art)
-        executor.create_task(stage, input_artifacts)
+        executor.create_task(stage, input_artifacts, self.monitor)
+
+        # Create local file task.
+        local_stage = pf.create_pipeline_stage(self.local_stage_config)
+        executor.create_task(local_stage, [], self.monitor)
 
         # Save input artifacts so they're available for the remote server
         executor._backend.save_artifact(input_artifacts[0])
@@ -178,6 +203,8 @@ class TestRemoteSQS(AWSTestBase):
             self.stage_config,
             Artifact.dependency_hash(input_artifacts))
 
+        self.assertNotEqual(arts, None)
+
         loaded = []
         for art in arts:
             loaded.append(executor._backend.load_artifact(art))
@@ -185,6 +212,23 @@ class TestRemoteSQS(AWSTestBase):
         self.assertEqual(1, len(loaded))
         self.assertEqual(loaded[0].item.payload['param_a'],
                          "string parameter value")
+
+        # Load our locally generated artifact(s) and ensure they
+        # have the correct payload.
+        arts = executor._backend.find_pipeline_stage_run_artifacts(
+            self.local_stage_config,
+            Artifact.dependency_hash([]))
+
+        self.assertNotEqual(arts, None)
+        loaded = []
+        for art in arts:
+            loaded.append(executor._backend.load_artifact(art))
+
+        self.assertEqual(1, len(loaded))
+        self.assertEqual(False, hasattr(loaded[0], "_remotely_produced"))
+
+        with readStream(loaded[0].item.payload) as content:
+            self.assertEqual(content, self.filedatas[0])
 
     def test_remote_sqs_server(self):
         #Ensure that we cover the direct .run() codepaths

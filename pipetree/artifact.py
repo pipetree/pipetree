@@ -44,7 +44,7 @@ class Artifact(object):
 
         # Combined hash of the specific artifacts utilized by the stage
         # that produced this artifact
-        self._dependency_hash = None
+        self._dependency_hash = "0"
 
         # Creation time of artifact payload. Stored as UNIX epoch time
         self._creation_time = None
@@ -216,6 +216,8 @@ class Artifact(object):
         We do this by generating unique IDs for all input artifacts,
         then sorting those IDs and hashing their concatenation
         """
+        if len(input_artifacts) == 0:
+            return "0"
         uids = map(lambda x: x.get_uid(), input_artifacts)
         h = hashlib.md5()
         for u in uids:

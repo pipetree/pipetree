@@ -30,9 +30,10 @@ from pipetree.artifact import Artifact
 from pipetree.config import PipelineStageConfig
 from pipetree.exceptions import *
 from pipetree.arbiter import LocalArbiter
+from pipetree.monitor import CLIMonitor
 
 
-class TestLocalArbiter(unittest.TestCase):
+class TestMonitor(unittest.TestCase):
     def setUp(self):
         self.config_filename = 'pipetree.json'
         self.testfile_name = 'testfile'
@@ -48,8 +49,6 @@ class TestLocalArbiter(unittest.TestCase):
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-
-        pass
 
     def tearDown(self):
         self.fs.__exit__(None, None, None)
@@ -67,44 +66,15 @@ class TestLocalArbiter(unittest.TestCase):
         )
 
     def test_run_pipeline(self):
-        arbiter = LocalArbiter(os.path.join(".", self.config_filename))
+        monitor = CLIMonitor(aws_manager=None)
+        arbiter = LocalArbiter(os.path.join(".", self.config_filename),
+                               monitor=monitor)
         try:
             arbiter.run_event_loop(close_after=8.0)
         except RuntimeError:
             # Event loop is always closed
-            print("RTE")
             pass
         final_artifacts = arbiter.await_run_complete()
         print(final_artifacts[0][0].item.payload)
         self.assertEqual(len(final_artifacts), 1)
         self.assertEqual(final_artifacts[0][0]._loaded_from_cache, False)
-
-    def test_pipeline_caching(self):
-        arbiter = LocalArbiter(os.path.join(".", self.config_filename))
-        try:
-            arbiter.run_event_loop(close_after=3.0)
-        except RuntimeError:
-            # Event loop is always closed
-            pass
-
-        final_artifacts = arbiter.await_run_complete()[0]
-        for artifact in final_artifacts:
-            print(artifact.item.payload)
-        self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_cache, False)
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        arbiter = LocalArbiter(os.path.join(".", self.config_filename),
-                               loop)
-        arbiter.reset()
-        print("========= Second run of pipeline to test caching ======")
-        try:
-            arbiter.run_event_loop(close_after=3.0)
-        except RuntimeError:
-            # Event loop is always closed
-            pass
-
-        final_artifacts = arbiter.await_run_complete()[0]
-        self.assertEqual(len(final_artifacts), 1)
-        self.assertEqual(final_artifacts[0]._loaded_from_cache, True)

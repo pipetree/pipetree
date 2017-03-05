@@ -51,12 +51,12 @@ class AWSTestBase(unittest.TestCase):
         cls._default_backend = cls.newBackend(cls)
 
         # Delete buckets and rows in table
-        cls.cleanup_test_tables(cls._default_backend)
+        cls.cleanup_tables(cls._default_backend)
 
     @classmethod
     def tearDownClass(cls):
         cls.cleanup_buckets(cls._default_backend._s3_client)
-        cls.cleanup_test_tables(cls._default_backend)
+        cls.cleanup_tables(cls._default_backend)
         cls.cleanup_test_queues()
 
     def generate_pipeline_config(self):
@@ -117,8 +117,9 @@ class AWSTestBase(unittest.TestCase):
             for k in keys:
                 batch.delete_item(Key=k)
 
-    @staticmethod
-    def cleanup_test_tables(backend):
+    @classmethod
+    def cleanup_tables(cls, bzackend):
+        backend = bzackend
         AWSTestBase.delete_all_rows(
             backend.dynamodb_stage_run_table_name,
             backend._stage_run_table,

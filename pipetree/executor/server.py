@@ -108,8 +108,7 @@ class ExecutorServer(object):
             loaded_artifacts.append(loaded)
 
         # Execute the task
-        print("About to create task for executor")
-        exec_task = self._executor.create_task(stage, loaded_artifacts)
+        exec_task = self._executor.create_task(stage, loaded_artifacts, None)
         result = await exec_task.generate_artifacts()
 
         for art in result:

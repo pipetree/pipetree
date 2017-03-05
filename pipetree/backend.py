@@ -31,11 +31,12 @@ import threading
 import boto3
 import botocore
 import time
+import logging
 
 from pipetree import settings
 from pipetree.utils import attach_config_to_object
 from pipetree.exceptions import ArtifactMissingPayloadError, ArtifactNotFoundError
-from pipetree.providers import FileStringStream, FileByteStream
+from pipetree.providers import FileStringStream, FileByteStream, S3ObjectStream
 from pipetree.artifact import Artifact
 
 STAGE_COMPLETE = 'complete'
@@ -101,6 +102,14 @@ class ArtifactBackend(object):
         """
         raise NotImplementedError
 
+    def pipeline_run_status(self, uid):
+        """
+        Returns the status of an entire pipeline run, including the various stages within it.
+        """
+        raise NotImplementedError
+
+    #def log_pipeline_run(self,
+
     def _find_cached_artifact(self, artifact):
         """
         Tries to find a cached artifact matching the provided hashes/properties
@@ -144,9 +153,12 @@ class LocalArtifactBackend(ArtifactBackend):
     artifacts, this shouldn't impact performance tremendously at the moment.
     """
     DEFAULTS = {
-        "path": "./pipetree/local_cache/",
+        "path": "./.pipetree/local_cache/",
         "metadata_file": "pipeline.meta"
     }
+
+    def _log(self, s):
+        print("LocalArtifactBackend: %s" % s)
 
     def __init__(self, path=DEFAULTS['path'], **kwargs):
         super().__init__(path=path, **kwargs)
@@ -193,6 +205,8 @@ class LocalArtifactBackend(ArtifactBackend):
             self.path,
             self._relative_artifact_dir(artifact)))
 
+        self._log("Saving generated artifact for stage %s with dependency hash %s" %
+                  (artifact._pipeline_stage, artifact._dependency_hash))
         with self._write_lock:
             mode = 'w'
             if artifact._serialization_type == "bytestream":
@@ -453,7 +467,7 @@ class S3ArtifactBackend(ArtifactBackend):
     and their metadata.
     """
     DEFAULTS = {
-        "path": "~/.pipetree/local_cache/",
+        "path": "./.pipetree/local_cache/",
         "enable_local_caching": True,
         "metadata_file": "pipeline.meta",
         "aws_region": settings.AWS_REGION,
@@ -462,6 +476,9 @@ class S3ArtifactBackend(ArtifactBackend):
         "dynamodb_artifact_table_name": settings.DYNAMODB_ARTIFACT_TABLE_NAME,
         "dynamodb_stage_run_table_name": settings.DYNAMODB_STAGE_RUN_TABLE_NAME
     }
+
+    def _log(self, s):
+        print("S3ArtifactBackend: %s" % s)
 
     def __init__(self, path=DEFAULTS['path'], **kwargs):
         super().__init__(path=path, **kwargs)
@@ -477,8 +494,10 @@ class S3ArtifactBackend(ArtifactBackend):
 
         self._stage_run_table = None
         self._artifact_meta_table = None
+        self.s3_bucket_name = self.s3_bucket_name.lower().replace("-", "").replace("_", "")
         self._setup_s3()
         self._setup_dynamo_db()
+
 
     def _setup_s3(self):
         self._s3_client = self._session.client('s3')
@@ -676,7 +695,12 @@ class S3ArtifactBackend(ArtifactBackend):
         art_key = {
             'artifact_uid': artifact_uid
         }
+        print("Searching for cached artifact: ", art_key)
         response = self._artifact_meta_table.get_item(Key=art_key)
+
+        for r in self._artifact_meta_table.scan()['Items']:
+            print("SCAN", r)
+        print("Response: ", response)
         if 'Item' not in response:
             return None
         else:
@@ -699,8 +723,11 @@ class S3ArtifactBackend(ArtifactBackend):
             Key= self.s3_artifact_key(artifact)
         )
         if artifact._serialization_type == "bytestream":
-            return obj['Body']
-        return obj['Body'].read()
+            return S3ObjectStream(obj, bytestream=True)
+        if artifact._serialization_type == "stringstream":
+            return S3ObjectStream(obj)
+        else:
+            return obj['Body'].read()
 
     def log_pipeline_stage_run_complete(self, stage_config,
                                            dependency_hash):
@@ -765,7 +792,9 @@ class S3ArtifactBackend(ArtifactBackend):
                 art._specific_hash = obj['specific_hash']
                 art._dependency_hash = dependency_hash
                 art._definition_hash = stage_config.hash()
-                res.append(self._find_cached_artifact(art))
+                res.append(self._find_cached_artifact(art._config,
+                                                      art.item.type,
+                                                      art.get_uid()))
             return res
 
     def _get_pipeline_stage_run_meta(self, stage_config,

@@ -103,7 +103,7 @@ class Pipeline(object):
         """
         if artifact._creation_time is None:
             artifact._creation_time = float(time.time())
-        if artifact._dependency_hash is None:
+        if artifact._dependency_hash is "0":
             artifact._dependency_hash = dependency_hash
         return artifact
 
@@ -120,8 +120,8 @@ class Pipeline(object):
         if status == STAGE_COMPLETE or status == STAGE_IN_PROGRESS:
             cached_arts = backend.find_pipeline_stage_run_artifacts(
                 stage._config, dependency_hash)
-            self._log("Loaded %d cached artifacts for stage %s" %\
-                      (len(cached_arts), stage_name))
+            self._log("Loaded %d cached artifacts for stage %s, dependency hash %s" %\
+                      (len(cached_arts), stage_name, dependency_hash))
             loaded_arts = []
             for art in cached_arts:
                 loaded = backend.load_artifact(art)
@@ -132,7 +132,9 @@ class Pipeline(object):
             return None
 
     async def _run_stage(self, stage_name, input_artifacts,
-                         executor, backend):
+                         executor, backend, monitor,
+                         pipeline_run_id=None,
+    ):
         """
         Run a stage once we've acquired the input artifacts
         """
@@ -154,16 +156,20 @@ class Pipeline(object):
         result = []
         dependency_hash = Artifact.dependency_hash(input_artifacts)
 
+        monitor.log_stage_run_init(stage, pipeline_run_id)
         task = executor.create_task(self._stages[stage_name],
-                                    input_artifacts)
+                                    input_artifacts, monitor,
+                                    pipeline_run_id)
         artifacts = await task.generate_artifacts()
+        monitor.log_stage_run_complete(stage, pipeline_run_id)
 
         for art in artifacts:
             if hasattr(art, "_remotely_produced"):
                 self._log("Remotely produced artifact for %s" % stage_name)
                 result.append(art)
             else:
-                self._log("Yielding fresh artifact for stage %s" % stage_name)
+                self._log("Yielding fresh artifact for stage %s with dependency hash %s" %
+                          (stage_name, dependency_hash))
                 #self._log("\tPayload: %s " % str(art.item.payload)[0:50])
                 art = self._ensure_artifact_meta(art, dependency_hash)
                 backend.save_artifact(art)
@@ -174,20 +180,21 @@ class Pipeline(object):
         return result
 
     async def generate_stage(self, stage_name, schedule,
-                             executor, backend):
+                             executor, backend, monitor,
+                             pipeline_run_id=None):
         """
         Acquire input artifacts for a stage and run it.
         """
         chain = self._build_chain(stage_name)
 
-        # Create an input future for each input to this function
+        # Create an input future for each input to this stage
         pre_reqs = chain.get_level(1)
 
         self._log("Generating stage %s" % stage_name)
         if pre_reqs is None or len(pre_reqs) == 0:
             # This stage does not require any input artifacts
             self._log("No inputs needed for stage %s" % stage_name)
-            res = self._run_stage(stage_name, [], executor, backend)
+            res = self._run_stage(stage_name, [], executor, backend, monitor, pipeline_run_id)
             return [res]
         else:
             # Schedule an input future with the arbiter
@@ -212,7 +219,10 @@ class Pipeline(object):
                 runs.append(self._run_stage(stage_name,
                                             group,
                                             executor,
-                                            backend))
+                                            backend,
+                                            monitor,
+                                            pipeline_run_id
+                ))
             return runs
 
     def group_fanout_parameters(self, input_artifacts):

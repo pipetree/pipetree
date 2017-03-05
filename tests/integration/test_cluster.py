@@ -8,6 +8,7 @@ import shutil
 import pkg_resources
 from tests import isolated_filesystem
 
+from botocore import exception
 from pipetree.cluster import PipetreeCluster
 
 class TestCluster(unittest.TestCase):
@@ -47,12 +48,11 @@ class TestCluster(unittest.TestCase):
                                   **self._config)
         print(json.dumps(cluster.generate_redleader_cluster().cloud_formation_template(), indent=4))
         try:
-            #cluster.delete_cluster()
-            cluster.deploy_cluster()
+            cluster.delete_cluster()
+            cluster.create_cluster()
             time.sleep(10)
         except Exception as e:
             print("Cluster may already be deployed: %s" % e)
         print("CWD %s", os.getcwd())
 
         cluster.deploy_application(os.path.join(os.getcwd(), "test_docker_app"))
-        #print(os.listdir(os.path.join(os.getcwd(), "test_docker_app", "scripts")))

@@ -23,10 +23,15 @@ import os
 import json
 import time
 import click
+import math
 import shutil
 import subprocess
+import random
+import random
+import redleader.cluster
 
 from pipetree.cli.utils import _get_config_path, _assert_in_project_dir, _load_json_file
+from pipetree.utils import camelCase
 from pipetree import __version__ as pipetree_version
 from pipetree.templates import DEFAULT_CONFIG, DEFAULT_HANDLERS,\
     DEFAULT_PIPELINE_CONFIG, DEFAULT_CLUSTER_CONFIG
@@ -34,6 +39,8 @@ from pipetree.pipeline import PipelineFactory
 from pipetree.exceptions import PipetreeError
 from pipetree.arbiter import LocalArbiter
 from pipetree.cluster import PipetreeCluster
+from pipetree.monitor import CLIMonitor
+from pipetree.awsmanager import AWSManager
 
 @click.group()
 @click.version_option(version=pipetree_version, message='%(prog)s %(version)s')
@@ -200,25 +207,67 @@ def cluster_logs(ctx, cluster_config, n):
         for msg in logs[resource]:
             print(msg)
 
+
 @cluster.command('run')
+@click.option('--pipeline-run-id', default=None)
 @click.option('--pipeline-config', default="./pipeline.json")
 @click.option('--cluster-config', default="./cluster.json")
+@click.option('--deploy-code', default=True)
 @click.pass_context
-def cluster_run(ctx, pipeline_config,  cluster_config):
+def cluster_run(ctx, pipeline_run_id, pipeline_config,  cluster_config, deploy_code=True):
     pipeline_cfg = _load_json_file(pipeline_config)
     pipetree_cluster = PipetreeCluster(aws_profile=ctx.obj['aws_profile'])
     cluster_cfg =  _load_json_file(cluster_config)
+
+    if pipeline_run_id is None:
+        dict_context = redleader.cluster.Context()
+        d = dict_context.get_dict()
+        pipeline_run_id = camelCase([random.choice(d), random.choice(d), random.choice(d)])
+        click.echo("No Pipeline-Run-Id supplied. Using generated ID %s" % pipeline_run_id)
+    else:
+        click.echo("Using provided Pipeline Run ID: %s" % pipeline_run_id)
+
     click.echo("Creating cluster with config:")
     click.echo(json.dumps(cluster_cfg, indent=4))
     pipetree_cluster.load_config(cluster_cfg)
     pipetree_cluster.create_cluster()
-    """
-    (dId, status) = pipetree_cluster.deploy_application(os.path.join(os.getcwd()))
-    if status != "Succeeded":
-        print("Deployment failed with status '%s'" % status)
-        return
-    """
-    pipetree_cluster.run_arbiter(os.path.join(ctx.obj['project_dir'], pipeline_config))
+
+    manager = AWSManager(aws_profile=ctx.obj['aws_profile'])
+    monitor = CLIMonitor(aws_manager=manager)
+
+    # TODO: Test if cluster is currently running any pipeline run. Warn about deploying
+    # since it will cease all current execution.
+    if deploy_code is True:
+        (dId, status) = pipetree_cluster.deploy_application(os.path.join(os.getcwd()))
+        if status != "Succeeded":
+            print("Deployment failed with status '%s'" % status)
+            return
+    pipetree_cluster.run_arbiter(os.path.join(ctx.obj['project_dir'], pipeline_config),
+                                 monitor, pipeline_run_id)
+
+@cli.group('pipeline')
+@click.option('--aws-profile', default=None,
+              help='Name of the AWS profile to use')
+@click.pass_context
+def pipeline(ctx, aws_profile):
+    if not ctx.obj:
+        ctx.obj = {}
+    ctx.obj['aws_profile'] = aws_profile
+
+
+@pipeline.command('inspect')
+@click.option('--pipeline-config', default="./pipeline.json")
+@click.option('--cluster-config', default="./cluster.json")
+@click.pass_context
+def pipeline_inspect(ctx, pipeline_config,  cluster_config):
+    pipeline_cfg = _load_json_file(pipeline_config)
+    pipetree_cluster = PipetreeCluster(aws_profile=ctx.obj['aws_profile'])
+    cluster_cfg =  _load_json_file(cluster_config)
+    click.echo("Creating cluster with config:")
+    aws_profile = ctx.obj['aws_profile']
+    manager = AWSManager(aws_profile=aws_profile)
+    monitor = CLIMonitor(aws_manager=manager)
+    monitor.display_state("BAR")
 
 def main():
     cli(obj={})
