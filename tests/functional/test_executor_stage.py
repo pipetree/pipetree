@@ -25,7 +25,7 @@ from pipetree.config import PipelineStageConfig
 from pipetree.stage import PipelineStageFactory
 
 
-class TestExecutorPipelineStage(unittest.TestCase):
+eshclass TestExecutorPipelineStage(unittest.TestCase):
     def setUp(self):
         self.test_array = ['foo', 'bar', 'baz']
         self.stage_a = {

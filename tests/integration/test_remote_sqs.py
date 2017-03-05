@@ -36,11 +36,13 @@ import time
 import json
 
 from pipetree import openStream, readStream
+
 from pipetree.exceptions import ArtifactMissingPayloadError
 from pipetree.backend import S3ArtifactBackend, LocalArtifactBackend, STAGE_COMPLETE, STAGE_DOES_NOT_EXIST, STAGE_IN_PROGRESS
 from pipetree.config import PipelineStageConfig
 from pipetree.artifact import Artifact, Item
 from pipetree.monitor import Monitor
+from pipetree.templates import _default_pipeline_config
 
 from pipetree.stage import PipelineStageFactory
 from pipetree.executor.remoteSQS import RemoteSQSExecutor, RemoteSQSServer
@@ -61,24 +63,17 @@ class TestRemoteSQS(AWSTestBase):
                                    name), 'w') as f:
                 f.write(data)
 
-        # Setup stage config
-        self.stage_config = PipelineStageConfig("test_stage_name", {
-            "type": "ParameterPipelineStage",
-            "param_a": "string parameter value"
-        })
-
-        self.local_stage_config = PipelineStageConfig("local_file_stage_name", {
-            "type": "LocalFilePipelineStage",
-            "filepath": os.path.join(os.getcwd(), self.filenames[0])
-        })
-
+        # Setup stage config identical to our default project template
+        self.configs = {}
         args = ["/"] + (__file__.split("/")[1:-1])
-        self.executor_stage_config = {
-            'inputs': ['StageA'],
-            'execute': 'module.executor_function.fun',
-            'type': 'ExecutorPipelineStage',
-            'directory': os.path.join(*args)
-        }
+        for stage_name in _default_pipeline_config:
+            config = _default_pipeline_config[stage_name]
+            if stage_name == "ProcessImages":
+                config['directory'] = os.path.join(*args)
+                config['execute'] = 'test_module.executor_function.process_images'
+            self.configs[stage_name] = PipelineStageConfig(
+                stage_name,
+                _default_pipeline_config[stage_name])
 
         self.monitor = Monitor()
 
