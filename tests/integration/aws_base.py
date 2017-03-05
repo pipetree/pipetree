@@ -24,13 +24,7 @@ import unittest
 from collections import OrderedDict
 import boto3
 import random
-
-
-def get_or_create_queue(sqs_resource, queue_name):
-    try:
-        return sqs_resource.create_queue(QueueName=queue_name)
-    except:
-        return sqs_resource.get_queue_by_name(QueueName=queue_name)
+import time
 
 
 class AWSTestBase(unittest.TestCase):
@@ -52,6 +46,7 @@ class AWSTestBase(unittest.TestCase):
 
         # Delete buckets and rows in table
         cls.cleanup_tables(cls._default_backend)
+        cls.cleanup_test_queues()
 
     @classmethod
     def tearDownClass(cls):
@@ -74,12 +69,15 @@ class AWSTestBase(unittest.TestCase):
     @classmethod
     def cleanup_test_queues(cls):
         print("Cleaning up test queues")
-        q1 = get_or_create_queue(cls._sqs, cls.test_queue_task_name)
-        q2 = get_or_create_queue(cls._sqs, cls.test_queue_result_name)
+        q1 = cls._sqs.create_queue(QueueName=cls.test_queue_task_name)
+        q2 = cls._sqs.create_queue(QueueName=cls.test_queue_result_name)
         for message in q1.receive_messages():
             message.delete()
+            print("Deleting message from SQS Task Queue")
         for message in q2.receive_messages():
             message.delete()
+            print("Deleting message from SQS Result Queue")
+        time.sleep(5.0)
 
     @staticmethod
     def cleanup_buckets(client):
@@ -118,8 +116,8 @@ class AWSTestBase(unittest.TestCase):
                 batch.delete_item(Key=k)
 
     @classmethod
-    def cleanup_tables(cls, bzackend):
-        backend = bzackend
+    def cleanup_tables(cls, backend):
+        print("Cleaning up test tables")
         AWSTestBase.delete_all_rows(
             backend.dynamodb_stage_run_table_name,
             backend._stage_run_table,
@@ -131,3 +129,4 @@ class AWSTestBase(unittest.TestCase):
             backend._artifact_meta_table,
             ['artifact_uid']
         )
+        print("Test tables cleaned up")

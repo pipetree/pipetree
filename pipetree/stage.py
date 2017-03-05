@@ -102,7 +102,7 @@ class GridSearchPipelineStage(BasePipelineStage):
         self._artifact_source = GridSearchArtifactProvider(
             stage_config=config,
             parameters=params)
-        self._local_stage = True
+        self._local_stage = False
 
     def params_from_config(self, config):
         """ Extract parameters from a config"""

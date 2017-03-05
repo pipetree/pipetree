@@ -28,7 +28,6 @@ from concurrent.futures import CancelledError
 from collections import OrderedDict
 from pipetree.arbiter import LocalArbiter
 import boto3
-import logging
 import botocore
 import asyncio
 import random
@@ -42,7 +41,6 @@ from pipetree.backend import S3ArtifactBackend, LocalArtifactBackend, STAGE_COMP
 from pipetree.config import PipelineStageConfig
 from pipetree.artifact import Artifact, Item
 from pipetree.monitor import Monitor
-from pipetree.templates import _default_pipeline_config
 
 from pipetree.stage import PipelineStageFactory
 from pipetree.executor.remoteSQS import RemoteSQSExecutor, RemoteSQSServer
@@ -64,22 +62,35 @@ class TestRemoteSQS(AWSTestBase):
                 f.write(data)
 
         # Setup stage config identical to our default project template
-        self.configs = {}
+
         args = ["/"] + (__file__.split("/")[1:-1])
-        for stage_name in _default_pipeline_config:
-            config = _default_pipeline_config[stage_name]
-            if stage_name == "ProcessImages":
-                config['directory'] = os.path.join(*args)
-                config['execute'] = 'test_module.executor_function.process_images'
+        self.stage_config_objs = OrderedDict([
+            ('CatPictures', {
+                'type': 'LocalDirectoryPipelineStage',
+                'filepath': os.path.join(*args, "test_images"),
+                'binary_mode': True
+            }),
+            ('SearchParams', {
+                'type': 'GridSearchPipelineStage',
+                'whiten_images': [True, False],
+                'number_neurons': [100]
+            }),
+            ('ProcessImages', {
+                'inputs': ['CatPictures', 'SearchParams'],
+                'type': 'ExecutorPipelineStage',
+                'directory': os.path.join(*args),
+                'execute': 'test_module.executor_function.process_images'
+            })
+        ])
+
+        self.configs = {}
+        for stage_name in self.stage_config_objs:
             self.configs[stage_name] = PipelineStageConfig(
                 stage_name,
-                _default_pipeline_config[stage_name])
+                self.stage_config_objs[stage_name])
 
         self.monitor = Monitor()
-
-        logging.getLogger('boto3').setLevel(logging.CRITICAL)
-        logging.getLogger('botocore').setLevel(logging.CRITICAL)
-        logging.getLogger('nose').setLevel(logging.CRITICAL)
+        self.cleanup_tables(self._default_backend)
 
     def tearDown(self):
         self.fs.__exit__(None, None, None)
@@ -95,9 +106,15 @@ class TestRemoteSQS(AWSTestBase):
         )
 
         pf = PipelineStageFactory()
-        stage = pf.create_pipeline_stage(self.stage_config)
-        input_artifacts = [Artifact(self.stage_config)]
+        stage = pf.create_pipeline_stage(self.configs['CatPictures'])
+        input_artifacts = []
         executor.create_task(stage, input_artifacts, self.monitor)
+
+        async def timeout():
+            await asyncio.sleep(10.0)
+            for task in asyncio.Task.all_tasks():
+                task.cancel()
+            raise CancelledError
 
         async def process_loop(executor, stage, input_artifacts):
             exit_loop = False
@@ -130,16 +147,14 @@ class TestRemoteSQS(AWSTestBase):
         try:
             loop.run_until_complete(asyncio.wait([
                 executor._process_queue(),
+                timeout(15.0),
                 process_loop(executor, stage, input_artifacts)
             ]))
         except CancelledError:
             print('CancelledError raised: closing event loop.')
 
-    def test_executor_server_integration(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        executor = RemoteSQSExecutor(
+    def _create_executor(self, loop):
+        return RemoteSQSExecutor(
             aws_profile=self.test_profile,
             task_queue_name=self.test_queue_task_name,
             result_queue_name=self.test_queue_result_name,
@@ -149,7 +164,8 @@ class TestRemoteSQS(AWSTestBase):
             loop=loop
         )
 
-        server = RemoteSQSServer(
+    def _create_server(self, loop):
+        return RemoteSQSServer(
             aws_profile=self.test_profile,
             aws_region=self.test_region,
             s3_bucket_name=self.test_bucket_name,
@@ -160,70 +176,91 @@ class TestRemoteSQS(AWSTestBase):
             loop=loop
         )
 
-        # Create task. Its input will be itself because that's just great.
+    def test_executor_server_integration(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        executor = self._create_executor(loop)
+        server = self._create_server(loop)
+
         pf = PipelineStageFactory()
-        stage = pf.create_pipeline_stage(self.stage_config)
-        input_artifacts = []
-        for art in stage.yield_artifacts():
-            input_artifacts.append(art)
-        executor.create_task(stage, input_artifacts, self.monitor)
+        file_stage = pf.create_pipeline_stage(self.configs['CatPictures'])
+        executor.create_task(file_stage, [], self.monitor)
 
-        # Create local file task.
-        local_stage = pf.create_pipeline_stage(self.local_stage_config)
-        executor.create_task(local_stage, [], self.monitor)
-
-        # Save input artifacts so they're available for the remote server
-        executor._backend.save_artifact(input_artifacts[0])
+        grid_stage = pf.create_pipeline_stage(self.configs['SearchParams'])
+        executor.create_task(grid_stage, [], self.monitor)
 
         # Run our local RemoteExecutor and the remote RemoteSQSServer
-        # for 10 seconds.
-        async def timeout():
-            await asyncio.sleep(10.0)
+        async def timeout(n):
+            await asyncio.sleep(n)
             for task in asyncio.Task.all_tasks():
                 task.cancel()
             raise CancelledError
         try:
             loop.run_until_complete(asyncio.wait([
                 executor._process_queue(),
+                executor._process_sqs_messages(),
                 server._process_tasks(),
                 server._executor_server._listen_to_queue(),
-                timeout()
+                timeout(10.0)
             ]))
         except CancelledError:
             print('CancelledError raised: closing event loop.')
 
-        # Load our remotely generated artifact(s) and ensure they
-        # have the correct payload.
-        arts = executor._backend.find_pipeline_stage_run_artifacts(
-            self.stage_config,
-            Artifact.dependency_hash(input_artifacts))
-
-        self.assertNotEqual(arts, None)
-
-        loaded = []
-        for art in arts:
-            loaded.append(executor._backend.load_artifact(art))
-
-        self.assertEqual(1, len(loaded))
-        self.assertEqual(loaded[0].item.payload['param_a'],
-                         "string parameter value")
-
         # Load our locally generated artifact(s) and ensure they
         # have the correct payload.
-        arts = executor._backend.find_pipeline_stage_run_artifacts(
-            self.local_stage_config,
+        file_stage_out = executor._backend.find_pipeline_stage_run_artifacts(
+            self.configs['CatPictures'],
             Artifact.dependency_hash([]))
+        self.assertNotEqual(file_stage_out, None)
+        for art in file_stage_out:
+            loaded = executor._backend.load_artifact(art)
+            self.assertNotEqual(None, loaded)
+            self.assertNotEqual(None, loaded.item.payload)
 
-        self.assertNotEqual(arts, None)
-        loaded = []
-        for art in arts:
-            loaded.append(executor._backend.load_artifact(art))
+        grid_stage_out = executor._backend.find_pipeline_stage_run_artifacts(
+            self.configs['SearchParams'],
+            Artifact.dependency_hash([]))
+        self.assertNotEqual(grid_stage_out, None)
+        for art in grid_stage_out:
+            loaded = executor._backend.load_artifact(art)
+            print("GRID PARAM", loaded.item.payload)
+            self.assertNotEqual(None, loaded)
+            self.assertNotEqual(None, loaded.item.payload)
 
-        self.assertEqual(1, len(loaded))
-        self.assertEqual(False, hasattr(loaded[0], "_remotely_produced"))
+        # Now remotely run the executor stage
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-        with readStream(loaded[0].item.payload) as content:
-            self.assertEqual(content, self.filedatas[0])
+        executor = self._create_executor(loop)
+        server = self._create_server(loop)
+
+        process_stage = pf.create_pipeline_stage(self.configs['ProcessImages'])
+        for grid_params in grid_stage_out:
+            print("Test: Creating task for grid params")
+            executor.create_task(process_stage, file_stage_out + [grid_params], self.monitor)
+        try:
+            loop.run_until_complete(asyncio.wait([
+                executor._process_queue(),
+                executor._process_sqs_messages(),
+                server._process_tasks(),
+                server._executor_server._listen_to_queue(),
+                timeout(60.0)
+            ]))
+        except CancelledError:
+            print('CancelledError raised: closing event loop.')
+
+        for grid_params in grid_stage_out:
+            process_stage_out = executor._backend.find_pipeline_stage_run_artifacts(
+                self.configs['ProcessImages'],
+                Artifact.dependency_hash(file_stage_out + [grid_params]))
+            self.assertNotEqual(process_stage_out, None)
+            for art in process_stage_out:
+                loaded = executor._backend.load_artifact(art)
+                self.assertNotEqual(None, loaded)
+                self.assertNotEqual(None, loaded.item.payload)
+                self.assertEqual(loaded.item.payload, 14)
+
 
     def test_remote_sqs_server(self):
         #Ensure that we cover the direct .run() codepaths

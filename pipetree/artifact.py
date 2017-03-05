@@ -69,12 +69,15 @@ class Artifact(object):
 
         self._serialization_type = serialization_type
 
+        self._remotely_produced = False
+
         # Listing of meta properties for serialization purposes
         self._meta_properties = [
             "antecedents", "creation_time", "definition_hash",
             "specific_hash", "dependency_hash",
             "fanout_parameters",
-            "pipeline_stage", "serialization_type"]
+            "pipeline_stage", "serialization_type",
+            "remotely_produced"]
 
         # Listing of item properties for serialization purposes
         self._item_properties = [

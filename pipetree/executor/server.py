@@ -110,7 +110,6 @@ class ExecutorServer(object):
         # Execute the task
         exec_task = self._executor.create_task(stage, loaded_artifacts, None)
         result = await exec_task.generate_artifacts()
-
         for art in result:
             art._creation_time = float(time.time())
             art._dependency_hash = Artifact.dependency_hash(loaded_artifacts)
@@ -154,6 +153,7 @@ class ExecutorServer(object):
             self._loop.run_until_complete(asyncio.wait([
                 self._close_after(close_after),
                 self._executor._process_queue(),
+                self._executor._process_sqs_messages(),
                 self._listen_to_queue()
             ]))
         except CancelledError:

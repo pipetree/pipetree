@@ -372,7 +372,7 @@ class LocalArtifactBackend(ArtifactBackend):
                  "uid": uid
                 }
         else:
-            print("Artifact %s already generated for run %s" %
+            self._log("Artifact %s already generated for run %s" %
                   (artifact.get_uid(), artifact._pipeline_stage))
 
         distutils.dir_util.mkpath(os.path.join(
@@ -695,7 +695,7 @@ class S3ArtifactBackend(ArtifactBackend):
         art_key = {
             'artifact_uid': artifact_uid
         }
-        print("Searching for cached artifact: ", art_key)
+        print("Searching for cached artifact: ", stage_config.name, item_type, artifact_uid)
         response = self._artifact_meta_table.get_item(Key=art_key)
 
         for r in self._artifact_meta_table.scan()['Items']:

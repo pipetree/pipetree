@@ -22,6 +22,7 @@ import boto3
 import botocore.exceptions
 import json
 import asyncio
+import threading
 
 from pipetree import settings
 from pipetree.executor import Executor, LocalCPUExecutor
@@ -29,18 +30,6 @@ from pipetree.artifact import Artifact
 from pipetree.backend import S3ArtifactBackend
 from pipetree.executor.executor import ALL_ARTIFACTS_GENERATED
 from pipetree.executor.server import ExecutorServer
-
-
-def get_or_create_queue(sqs_resource, queue_name):
-    try:
-        q = sqs_resource.create_queue(QueueName=queue_name)
-        print("Queue %s does not exist. Creating." % queue_name)
-        return q
-    except botocore.exceptions.ClientError as e:
-        if "Exists" not in "%s" % e:
-            raise e
-        print("Queue %s already exists. Returning reference.")
-        return sqs_resource.get_queue_by_name(QueueName=queue_name)
 
 
 class RemoteSQSExecutor(Executor):
@@ -78,10 +67,14 @@ class RemoteSQSExecutor(Executor):
             dynamodb_stage_run_table_name=dynamodb_stage_run_table_name)
 
         self._sqs = self._session.resource('sqs')
-        self._task_queue = get_or_create_queue(self._sqs,
-                                               task_queue_name)
-        self._result_queue = get_or_create_queue(self._sqs,
-                                                 result_queue_name)
+        self._task_queue = self._sqs.create_queue(QueueName=task_queue_name)
+        self._result_queue = self._sqs.create_queue(QueueName=result_queue_name)
+
+        # One queue is created for each awaited result. When the thread reading from
+        # SQS
+        self._lock = threading.Lock()
+        self._await_result_queues = {}
+
 
         self._log("RemoteSQSExecutor intitialized with task queue %s and result queue %s" %
               (task_queue_name, result_queue_name))
@@ -109,7 +102,7 @@ class RemoteSQSExecutor(Executor):
 
     def _complete_task(self, task, config_hash, dependency_hash):
         """
-        Load artifacts for a task from the backend, then mark the task complete
+        Load artifacts produced by a task from the backend, then mark the task complete
         """
         cached_arts = self._backend.find_pipeline_stage_run_artifacts(
             task._stage._config, dependency_hash)
@@ -120,18 +113,25 @@ class RemoteSQSExecutor(Executor):
             task.enqueue_artifact(art)
         task.all_artifacts_generated()
 
+    def _await_queue_id(self, config_hash, dependency_hash):
+        return config_hash + "__" + dependency_hash
+
     async def _await_result(self, config_hash, dependency_hash):
-        i = 0
+        key = self._await_queue_id(config_hash, dependency_hash)
+        queue = asyncio.Queue(loop=self._loop)
+        with self._lock:
+            self._await_result_queues[key] = queue
+        message = await queue.get()
+        return message
+
+    async def _process_sqs_messages(self):
         while True:
             await asyncio.sleep(2.0)
-            if i % 30 == 0:
-                self._log("Awaiting SQS Result Message for %s / %s" %
-                          (config_hash, dependency_hash))
-            i += 1
             for message in self._result_queue.receive_messages(
                     MessageAttributeNames=['stage_config_hash',
                                            'dependency_hash']):
                 if message.message_attributes is None:
+                    self._log("WARNING: SQS message received without attributes.")
                     continue
                 m_config_hash = message.message_attributes.\
                     get('stage_config_hash').get('StringValue')
@@ -140,11 +140,17 @@ class RemoteSQSExecutor(Executor):
 
                 # Mark the task as complete if this is the message
                 #  we've been waiting for.
-                if(config_hash == m_config_hash and
-                   dependency_hash == m_dependency_hash):
-                    self._log("Task complete. %s / %s" %
-                              (config_hash, dependency_hash))
-                    return message
+                with self._lock:
+                    key = self._await_queue_id(m_config_hash, m_dependency_hash)
+                    if key in self._await_result_queues:
+                        self._log("Task complete. %s / %s" %
+                                  (m_config_hash, m_dependency_hash))
+                        result = self._await_result_queues[key].put_nowait(message)
+                        del self._await_result_queues[key]
+                        return result
+                    else:
+                        self._log("Task %s / %s not yet awaited" %
+                                  (m_config_hash, m_dependency_hash))
 
     async def _execute_locally(self, task):
         """
@@ -228,10 +234,8 @@ class RemoteSQSServer(object):
 
         # Setup SQS Queues
         self._sqs = self._session.resource('sqs')
-        self._task_queue = get_or_create_queue(self._sqs,
-                                               task_queue_name)
-        self._result_queue = get_or_create_queue(self._sqs,
-                                                 result_queue_name)
+        self._task_queue = self._sqs.create_queue(QueueName=task_queue_name)
+        self._result_queue = self._sqs.create_queue(QueueName=result_queue_name)
 
         self._log("Initialized with task queue %s and result queue %s" %
                   (task_queue_name, result_queue_name))
@@ -267,30 +271,37 @@ class RemoteSQSServer(object):
         )
 
     async def _process_tasks(self):
-        for message in self._task_queue.receive_messages(
-                MessageAttributeNames=['stage_config_hash',
-                                       'dependency_hash']):
-            if message.message_attributes is not None:
-                m_config_hash = message.message_attributes.\
-                    get('stage_config_hash').get('StringValue')
-                m_dependency_hash = message.message_attributes.\
-                    get('dependency_hash').get('StringValue')
-                self._log("Retrieved SQS task message %s / %s" %
-                          (m_config_hash, m_dependency_hash))
-                task = json.loads(message.body)
-                job_id = self._executor_server.enqueue_job(task)
-                self._log("Enqueued Job ID: %d for stage %s" %
-                          (job_id, task['stage_name']))
-
-                job = None
-                while job is None or job['status'] is not 'complete':
-                    job = self._executor_server.retrieve_job(job_id)
-                    await asyncio.sleep(1.0)
-                self._log("Completed Job ID: %d for stage %s" %
-                          (job_id, task['stage_name']))
-                self._send_complete_message(m_config_hash, m_dependency_hash)
+        i = 0
+        while True:
+            await asyncio.sleep(2.0)
+            if i % 30 == 0:
+                self._log("Awaiting SQS Result Message")
+            i += 1
+            for message in self._task_queue.receive_messages(
+                    MessageAttributeNames=['stage_config_hash',
+                                           'dependency_hash']):
+                if message.message_attributes is not None:
+                    m_config_hash = message.message_attributes.\
+                        get('stage_config_hash').get('StringValue')
+                    m_dependency_hash = message.message_attributes.\
+                        get('dependency_hash').get('StringValue')
+                    self._log("Retrieved SQS task message %s / %s" %
+                              (m_config_hash, m_dependency_hash))
+                    task = json.loads(message.body)
+                    job_id = self._executor_server.enqueue_job(task)
+                    self._log("Enqueued Job ID: %d for stage %s" %
+                              (job_id, task['stage_name']))
+                    message.delete()
+                    job = None
+                    while job is None or job['status'] is not 'complete':
+                        job = self._executor_server.retrieve_job(job_id)
+                        await asyncio.sleep(1.0)
+                    self._log("Completed Job ID: %d for stage %s" %
+                              (job_id, task['stage_name']))
+                    self._send_complete_message(m_config_hash, m_dependency_hash)
 
     def run(self):
         print("Running SQS Executor Server")
         asyncio.ensure_future(self._process_tasks())
+        asyncio.ensure_future(self._process_sqs_messages())
         self._executor_server.run_event_loop()

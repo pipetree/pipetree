@@ -310,6 +310,7 @@ class RemoteSQSArbiter(ArbiterBase):
                 self._close_after(close_after),
                 self._main(),
                 self._default_executor._process_queue(),
+                self._default_executor._process_sqs_messages(),
                 self._monitor.run(),
                 self._listen_to_queue(),
             ]))
