@@ -502,12 +502,18 @@ class S3ArtifactBackend(ArtifactBackend):
     def _setup_s3(self):
         self._s3_client = self._session.client('s3')
         try:
+
             self._s3_client.create_bucket(Bucket=self.s3_bucket_name,
                                           CreateBucketConfiguration={
                                               'LocationConstraint': self.aws_region})
+            self._log("Created bucket %s" % self.s3_bucket_name)
         except botocore.exceptions.ClientError as err:
-            # Bucket already created? Good to go.
-            pass
+            self._log("Bucket already exists %s" % self.s3_bucket_name)
+            return
+            if "TooManyBuckets" in "%s" % err:
+                print(err)
+                pass
+
 
     def _setup_dynamo_db(self):
         """

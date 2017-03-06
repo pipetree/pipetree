@@ -147,7 +147,7 @@ class TestRemoteSQS(AWSTestBase):
         try:
             loop.run_until_complete(asyncio.wait([
                 executor._process_queue(),
-                timeout(15.0),
+                timeout(),
                 process_loop(executor, stage, input_artifacts)
             ]))
         except CancelledError:
@@ -245,7 +245,7 @@ class TestRemoteSQS(AWSTestBase):
                 executor._process_sqs_messages(),
                 server._process_tasks(),
                 server._executor_server._listen_to_queue(),
-                timeout(60.0)
+                timeout(30.0)
             ]))
         except CancelledError:
             print('CancelledError raised: closing event loop.')

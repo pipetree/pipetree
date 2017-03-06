@@ -153,7 +153,6 @@ class ExecutorServer(object):
             self._loop.run_until_complete(asyncio.wait([
                 self._close_after(close_after),
                 self._executor._process_queue(),
-                self._executor._process_sqs_messages(),
                 self._listen_to_queue()
             ]))
         except CancelledError:

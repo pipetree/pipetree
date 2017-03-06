@@ -82,7 +82,7 @@ class AWSTestBase(unittest.TestCase):
     @staticmethod
     def cleanup_buckets(client):
         for bucket in client.list_buckets()['Buckets']:
-            if 'pipetree-test' in bucket['Name']:
+            if 'pipetreetest' in bucket['Name']:
                 print("Deleting test bucket: %s" % bucket['Name'])
                 listed = client.list_objects_v2(Bucket=bucket['Name'])
                 if 'Contents' in listed:

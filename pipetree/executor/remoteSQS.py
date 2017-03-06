@@ -303,5 +303,4 @@ class RemoteSQSServer(object):
     def run(self):
         print("Running SQS Executor Server")
         asyncio.ensure_future(self._process_tasks())
-        asyncio.ensure_future(self._process_sqs_messages())
         self._executor_server.run_event_loop()
